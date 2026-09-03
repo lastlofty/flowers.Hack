@@ -73,7 +73,11 @@ module Paybridge
 
       def callback_block
         block = { 'endpoint' => "POST #{spec.webhook.path}" }
-        block['signature_header'] = spec.webhook.signature_header if spec.webhook.signature_header
+        if spec.webhook.signature_header
+          block['signature_header']   = spec.webhook.signature_header
+          block['signature_alg']      = spec.webhook.signature_alg
+          block['signature_encoding'] = spec.webhook.signature_encoding
+        end
 
         spec.webhook_examples.each do |name, payload|
           entry = { 'payload' => payload }

@@ -65,6 +65,24 @@ ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --overrides examples/overrides.novapay.yml
 ```
 
+## Проверка сгенерированной интеграции
+
+`verify` прогоняет `fixtures.json` против сгенерированного сервиса через мок-клиент:
+вызывает `create_request` / `fetch_status` / `process_callback` (с реальной проверкой
+HMAC-подписи) и сверяет с ожиданиями. Доказывает, что интеграция работает, а не только
+компилируется.
+
+```bash
+ruby exe/integrate --spec examples/provider_api.yaml --provider novapay
+ruby exe/integrate verify --dir output
+```
+```
+  OK   create_request.response_201
+  OK   callback.completed
+  ...
+  7 passed, 0 failed
+```
+
 ## Тесты
 
 ```bash

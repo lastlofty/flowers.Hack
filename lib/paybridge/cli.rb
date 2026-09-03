@@ -12,6 +12,8 @@ module Paybridge
     end
 
     def start(argv)
+      return verify(argv[1..]) if argv.first == 'verify'
+
       options = parse_options(argv)
       run(options)
       0
@@ -24,6 +26,29 @@ module Paybridge
     end
 
     private
+
+    # integrate verify --dir output/
+    def verify(argv)
+      dir = './output'
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate verify --dir <output-dir>'
+        o.on('--dir DIR', 'Каталог со сгенерированной интеграцией') { |v| dir = v }
+      end.parse!(argv)
+
+      report = Verifier.new(dir).run
+      report.cases.each do |c|
+        mark = c.ok ? "\e[32mOK  \e[0m" : "\e[31mFAIL\e[0m"
+        line = "  #{mark} #{c.name}"
+        line += " — #{c.detail}" unless c.ok
+        puts line
+      end
+      puts
+      puts "#{report.passed} passed, #{report.failed} failed"
+      report.all_passed? ? 0 : 1
+    rescue Verifier::LoadError => e
+      warn "\e[31mОшибка загрузки интеграции:\e[0m #{e.message}"
+      1
+    end
 
     def parse_options(argv)
       options = { output: './output', lang: 'ruby', config: Paybridge::DEFAULT_CONFIG }

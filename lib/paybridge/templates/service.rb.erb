@@ -129,7 +129,9 @@ module Provider
 
     def verify_signature!(payload)
       secret   = provider.credentials.fetch('<%= spec.webhook.callback_secret_field %>')
-      raw_body = payload.is_a?(String) ? payload : JSON.generate(payload)
+      # подпись считается по телу БЕЗ служебного поля _signature
+      body     = payload.is_a?(Hash) ? payload.reject { |k, _| k == '_signature' } : payload
+      raw_body = body.is_a?(String) ? body : JSON.generate(body)
 <% if spec.webhook.signature_encoding == 'base64' -%>
       expected = Base64.strict_encode64(OpenSSL::HMAC.digest('<%= spec.webhook.signature_alg %>', secret, raw_body))
 <% else -%>
