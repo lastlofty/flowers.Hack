@@ -19,8 +19,9 @@ module Paybridge
     Auth = Struct.new(
       :scheme_type,        # 'apiKey' | 'http' | ...
       :location,           # 'header' | 'query'
-      :header_name,        # напр. X-API-Key
+      :header_name,        # напр. X-API-Key | Authorization
       :credentials_field,  # ключ в providers.credentials
+      :header_value_ruby,  # Ruby-выражение значения заголовка
       keyword_init: true
     )
 

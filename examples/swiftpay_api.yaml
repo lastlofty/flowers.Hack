@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: SwiftPay API
+  description: |
+    Третий тестовый провайдер. Отличие: авторизация Bearer-токеном
+    (`Authorization: Bearer <token>`), без webhook, без отмены.
+  version: 1.0.0
+
+servers:
+  - url: https://sandbox.swiftpay.example/v1
+    description: Sandbox
+  - url: https://api.swiftpay.example/v1
+    description: Production
+
+paths:
+  /payments:
+    post:
+      summary: Создать платёж
+      description: Сумма в центах.
+      operationId: createPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              example:
+                id: "sp_001"
+                status: pending
+        '401':
+          description: Невалидный токен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутренняя ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/{payment_id}:
+    get:
+      summary: Статус платежа
+      operationId: getPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Статус
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: JWT/opaque токен в заголовке Authorization
+
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      required: [amount, currency, reference]
+      properties:
+        amount:
+          type: integer
+          description: Сумма в центах
+          minimum: 100
+          example: 2500
+        currency:
+          type: string
+          enum: [USD]
+          example: USD
+        reference:
+          type: string
+          maxLength: 64
+          example: "ord_42"
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string

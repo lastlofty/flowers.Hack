@@ -27,6 +27,14 @@ module Paybridge
         spec.amount && spec.amount[:min_major]
       end
 
+      # Нужен ли require 'base64' в сгенерированном сервисе
+      # (подпись webhook в base64 или Basic-авторизация).
+      def needs_base64?
+        webhook_base64 = spec.webhook && spec.webhook.signature_encoding == 'base64'
+        auth_base64 = spec.auth && spec.auth.header_value_ruby.to_s.include?('Base64')
+        webhook_base64 || auth_base64
+      end
+
       def render_status_map
         render_const('STATUS_MAP', spec.status_map) { |k, v| "'#{k}' => '#{v}'" }
       end

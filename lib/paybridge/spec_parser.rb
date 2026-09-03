@@ -141,25 +141,40 @@ module Paybridge
 
     def build_auth
       schemes = dig(@doc, 'components', 'securitySchemes') || {}
-      name, scheme = schemes.first
+      _name, scheme = schemes.first
       if scheme.nil?
         @report.warn('В спецификации не описаны securitySchemes — авторизация не сгенерирована')
         return nil
       end
 
+      header, field, value = auth_shape(scheme)
       IR::Auth.new(
         scheme_type: scheme['type'],
         location: scheme['in'],
-        header_name: scheme['name'],
-        credentials_field: credentials_field(name, scheme)
+        header_name: header,
+        credentials_field: field,
+        header_value_ruby: value
       )
     end
 
-    def credentials_field(_name, scheme)
+    # По типу схемы возвращает [имя заголовка, поле credentials, Ruby-выражение значения].
+    def auth_shape(scheme)
       case scheme['type']
-      when 'apiKey' then 'api_key'
-      when 'http'   then scheme['scheme'] == 'bearer' ? 'token' : 'password'
-      else 'api_key'
+      when 'apiKey'
+        if scheme['in'] && scheme['in'] != 'header'
+          @report.warn("Авторизация apiKey задана в '#{scheme['in']}', не в header — сгенерирован header-вариант")
+        end
+        [scheme['name'], 'api_key', "provider.credentials.fetch('api_key')"]
+      when 'http'
+        if scheme['scheme'].to_s.downcase == 'basic'
+          basic = %q{"Basic #{Base64.strict_encode64("#{provider.credentials.fetch('username')}:#{provider.credentials.fetch('password')}")}"}
+          ['Authorization', 'password', basic]
+        else # bearer — дефолт для http
+          ['Authorization', 'token', %q{"Bearer #{provider.credentials.fetch('token')}"}]
+        end
+      else
+        @report.warn("Неизвестный тип авторизации '#{scheme['type']}' — сгенерирован API-key заголовок")
+        [scheme['name'] || 'Authorization', 'api_key', "provider.credentials.fetch('api_key')"]
       end
     end
 
