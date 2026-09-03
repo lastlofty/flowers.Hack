@@ -35,6 +35,18 @@ module Paybridge
         webhook_base64 || auth_base64
       end
 
+      # apiKey передаётся в query-параметре, а не в заголовке.
+      def auth_in_query?
+        spec.auth && spec.auth.location == 'query'
+      end
+
+      # Фрагмент для добавления ключа в URL при query-авторизации (иначе '').
+      def auth_query
+        return '' unless auth_in_query?
+
+        "?#{spec.auth.header_name}=\#{CGI.escape(#{spec.auth.header_value_ruby})}"
+      end
+
       def render_status_map
         render_const('STATUS_MAP', spec.status_map) { |k, v| "'#{k}' => '#{v}'" }
       end

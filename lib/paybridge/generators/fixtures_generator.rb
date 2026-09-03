@@ -53,7 +53,24 @@ module Paybridge
           block["response_#{code}"] = example
           block["expected_#{code}"] = expected_for(code, example)
         end
+        synthesize_create_example(block)
         block
+      end
+
+      # Если в спеке нет inline-примера успешного создания, синтезируем его из
+      # enum статусов — чтобы create можно было проверить даже на «сухой» спеке.
+      def synthesize_create_example(block)
+        return if block['response_201']
+
+        provider_status = spec.status_map.key('in_progress') || spec.status_map.keys.first
+        return unless provider_status
+
+        block['response_201'] = { 'id' => 'op_sample', 'status' => provider_status }
+        block['expected_201'] = {
+          'status' => 'success',
+          'provider_operation_id' => 'op_sample',
+          'operation_status' => spec.status_map[provider_status]
+        }
       end
 
       def status_block

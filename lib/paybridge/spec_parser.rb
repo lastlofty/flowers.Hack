@@ -161,9 +161,7 @@ module Paybridge
     def auth_shape(scheme)
       case scheme['type']
       when 'apiKey'
-        if scheme['in'] && scheme['in'] != 'header'
-          @report.warn("Авторизация apiKey задана в '#{scheme['in']}', не в header — сгенерирован header-вариант")
-        end
+        # in header или in query — оба поддержаны (location несёт scheme['in'])
         [scheme['name'], 'api_key', "provider.credentials.fetch('api_key')"]
       when 'http'
         if scheme['scheme'].to_s.downcase == 'basic'

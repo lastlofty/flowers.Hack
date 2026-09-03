@@ -30,15 +30,18 @@ class <%= spec.provider_class %>Test < Minitest::Test
                                  })
   end
 
+  def requisite
+    req = Hash.new { |h, group| h[group] = Hash.new { |_g, field| "test_#{field}" } }
+    req['sbp']  = { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' }
+    req['card'] = { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' }
+    req['sepa'] = { 'iban' => 'DE89370400440532013000', 'holder_name' => 'IVAN PETROV' }
+    req
+  end
+
   def operation
     Struct.new(:amount, :id, :payout_requisite, :provider_operation_id, :idempotency_key,
                keyword_init: true).new(
-      amount: 15_000, id: 'op_test',
-      payout_requisite: {
-        'sbp'  => { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' },
-        'card' => { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' },
-        'sepa' => { 'iban' => 'DE89370400440532013000', 'holder_name' => 'IVAN PETROV' }
-      },
+      amount: 15_000, id: 'op_test', payout_requisite: requisite,
       provider_operation_id: 'op_prov', idempotency_key: 'idem_1'
     )
   end

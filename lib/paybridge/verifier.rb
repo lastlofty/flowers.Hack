@@ -186,14 +186,20 @@ module Paybridge
       FakeOperation.new(
         amount: 15_000,
         id: 'op_test',
-        payout_requisite: {
-          'sbp'  => { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' },
-          'card' => { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' },
-          'sepa' => { 'iban' => 'DE89370400440532013000', 'holder_name' => 'IVAN PETROV' }
-        },
+        payout_requisite: fake_requisite,
         provider_operation_id: 'op_prov',
         idempotency_key: 'idem_1'
       )
+    end
+
+    # Реквизиты с реалистичными значениями для известных групп и разумной
+    # заглушкой для любой другой — новый тип реквизитов не ломает verify.
+    def fake_requisite
+      req = Hash.new { |h, group| h[group] = Hash.new { |_g, field| "test_#{field}" } }
+      req['sbp']  = { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' }
+      req['card'] = { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' }
+      req['sepa'] = { 'iban' => 'DE89370400440532013000', 'holder_name' => 'IVAN PETROV' }
+      req
     end
 
     def eq(actual, expected)

@@ -5,6 +5,9 @@ require 'json'
 <% if needs_base64? -%>
 require 'base64'
 <% end -%>
+<% if auth_in_query? -%>
+require 'cgi'
+<% end -%>
 
 # ────────────────────────────────────────────────────────────────────────
 # СГЕНЕРИРОВАНО PayBridge из <%= File.basename(spec_source) %>
@@ -36,7 +39,7 @@ module Provider
     def create_request(operation, request_method = 'create')
       payload  = build_request_payload(operation)
       response = client.post(
-        "#{BASE_URL}<%= spec.create_endpoint.path %>",
+        "#{BASE_URL}<%= spec.create_endpoint.path %><%= auth_query %>",
         json: payload,
         headers: <%= create_headers %>
       )
@@ -50,7 +53,7 @@ module Provider
 
     def fetch_status(operation)
       response = client.get(
-        "#{BASE_URL}<%= status_path_ruby %>",
+        "#{BASE_URL}<%= status_path_ruby %><%= auth_query %>",
         headers: auth_headers
       )
       return map_error(response) if response.status >= 400
@@ -116,7 +119,11 @@ module Provider
 <% if spec.auth -%>
 
     def auth_headers
+<% if auth_in_query? -%>
+      {} # ключ передаётся в query-параметре
+<% else -%>
       { '<%= spec.auth.header_name %>' => <%= spec.auth.header_value_ruby %> }
+<% end -%>
     end
 <% end -%>
 <% if spec.idempotency_header -%>
