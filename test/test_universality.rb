@@ -82,6 +82,8 @@ class TestUniversality < Minitest::Test
     )
     assert_equal %w[bluepay_service.rb INTEGRATION.md fixtures.json].sort,
                  generation.files.keys.sort
-    assert_empty generation.warnings   # все статусы/коды известны конфигу
+    # статусы/коды известны конфигу, но единицу суммы и кодировку подписи
+    # OpenAPI не выражает — генератор честно помечает эти допущения
+    assert(generation.warnings.any? { |w| w.include?('Единица суммы') })
   end
 end

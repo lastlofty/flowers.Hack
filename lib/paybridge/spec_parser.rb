@@ -14,10 +14,11 @@ module Paybridge
   class SpecParser
     class ParseError < StandardError; end
 
-    def initialize(spec_path, provider_name, config)
+    def initialize(spec_path, provider_name, config, overrides = {})
       @spec_path = spec_path
       @provider  = provider_name
       @config    = config
+      @overrides = overrides || {}
       @report    = Report.new
     end
 
@@ -42,7 +43,7 @@ module Paybridge
       error_map, http_symbol = error_mapper.build(http_codes)
 
       req_schema = create && resolve_deep(create.request_schema)
-      req = Mappers::RequestMapper.new(@report).build(req_schema)
+      req = Mappers::RequestMapper.new(@report, @overrides).build(req_schema)
 
       IR::Spec.new(
         provider_name: @provider,
@@ -226,8 +227,23 @@ module Paybridge
         id_field: webhook_id_field(schema),
         signature_header: sig && sig['name'],
         signature_alg: alg.sub(/HMAC-/i, ''),
+        signature_encoding: signature_encoding(sig),
         callback_secret_field: 'callback_secret'
       )
+    end
+
+    # Кодировку подписи (hex/base64) OpenAPI обычно не выражает — берём из
+    # overrides либо предупреждаем и принимаем 'hex' (канон NovaPay).
+    def signature_encoding(sig)
+      override = @overrides['signature_encoding']
+      return override if override
+      return nil if sig.nil?
+
+      @report.warn(
+        "Кодировка подписи webhook не задана в спеке: принята 'hex'. " \
+        'Уточните overrides.signature_encoding при необходимости.'
+      )
+      'hex'
     end
 
     # Поле-идентификатор операции в теле webhook (напр. payout_id).

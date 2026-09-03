@@ -35,11 +35,22 @@ module Paybridge
     raise GenerationError, "Файл конфигурации не найден: #{path}"
   end
 
+  # Опциональный overrides-файл: уточняет то, что нельзя достать из структуры
+  # OpenAPI (amount_unit, signature_encoding, required_if). Отсутствие — это {}.
+  def self.load_overrides(path = nil)
+    return {} if path.nil?
+
+    YAML.safe_load(File.read(path)) || {}
+  rescue Errno::ENOENT
+    raise GenerationError, "Файл overrides не найден: #{path}"
+  end
+
   # Главный фасад: спецификация -> { имя_файла => содержимое }.
-  def self.generate(spec_path:, provider:, config_path: DEFAULT_CONFIG)
-    config = load_config(config_path)
-    spec   = SpecParser.new(spec_path, provider, config).parse
-    source = File.basename(spec_path)
+  def self.generate(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+    config    = load_config(config_path)
+    overrides = load_overrides(overrides_path)
+    spec      = SpecParser.new(spec_path, provider, config, overrides).parse
+    source    = File.basename(spec_path)
 
     files = {
       "#{provider}_service.rb" =>
@@ -64,9 +75,10 @@ module Paybridge
 
   # Dry-run: только разбор спецификации, без генерации файлов.
   # Для эндпоинта POST /api/validate (превью «что распознано»).
-  def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG)
-    config = load_config(config_path)
-    spec   = SpecParser.new(spec_path, provider, config).parse
+  def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+    config    = load_config(config_path)
+    overrides = load_overrides(overrides_path)
+    spec      = SpecParser.new(spec_path, provider, config, overrides).parse
 
     {
       provider: provider,

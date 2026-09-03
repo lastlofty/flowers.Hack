@@ -19,16 +19,19 @@ module Paybridge
       CURRENCY_HINT = /\b(currency|ccy)\b/i
       EXTERNAL_HINT = /\b(external_id|merchant_id|order_id|reference)\b/i
 
-      def initialize(report)
+      def initialize(report, overrides = {})
         @report = report
+        @overrides = overrides || {}
         @amount = nil
         @currency = nil
         @external_id_field = nil
+        @guessed_required_if = []
       end
 
       def build(schema)
         schema ||= {}
         ruby = emit_object(schema, 1)
+        warn_guessed_required_if
         Result.new(
           ruby: ruby,
           amount: @amount,
@@ -63,7 +66,7 @@ module Paybridge
           emit_nested(prop, depth + 1, nested_group)
         elsif amount_field?(name, prop)
           record_amount(name, prop)
-          '(operation.amount * 100).to_i'
+          @amount[:minor_units] ? '(operation.amount * 100).to_i' : 'operation.amount'
         elsif currency_field?(name, prop)
           record_currency(prop)
         elsif external_field?(name, prop)
@@ -120,8 +123,20 @@ module Paybridge
       end
 
       def record_amount(name, prop)
-        minor = minor_units?(prop)
-        min   = prop['minimum']
+        unit = @overrides['amount_unit']
+        minor =
+          if unit
+            unit.to_s == 'minor'
+          else
+            guessed = minor_units?(prop)
+            @report.warn(
+              "Единица суммы не выражается в OpenAPI: принята " \
+              "'#{guessed ? 'minor' : 'major'}' (по описанию/минимуму). " \
+              'Уточните overrides.amount_unit при необходимости.'
+            )
+            guessed
+          end
+        min = prop['minimum']
         min_major = if min && minor then (min / 100) elsif min then min else nil end
         @amount = { field: name, minor_units: minor, min_major: min_major }
       end
@@ -131,12 +146,36 @@ module Paybridge
         quote(@currency)
       end
 
-      # Поле пропускаем, если по описанию оно принадлежит другому type=<...>.
-      def skip_field?(_name, prop, group)
-        restricted = prop['description'].to_s[/type=(\w+)/, 1]
+      # Поле пропускаем, если оно принадлежит другому type=<...>.
+      # Приоритет: overrides.required_if -> текст description (это уже догадка).
+      def skip_field?(name, prop, group)
+        restricted = override_required_if(name)
+        if restricted.nil?
+          guess = prop['description'].to_s[/type=(\w+)/, 1]
+          if guess && group
+            @guessed_required_if << name
+            restricted = guess
+          end
+        end
         return false if restricted.nil? || group.nil?
 
         restricted != group
+      end
+
+      def override_required_if(name)
+        rule = @overrides.dig('required_if', name)
+        return nil if rule.nil?
+
+        rule.is_a?(Hash) ? rule['equals'] : rule
+      end
+
+      def warn_guessed_required_if
+        @guessed_required_if.uniq.each do |name|
+          @report.warn(
+            "Условная обязательность поля '#{name}' выведена из текста description. " \
+            'Уточните overrides.required_if при необходимости.'
+          )
+        end
       end
 
       # Группа вложенного объекта = дефолтное значение поля type (первый enum / example).

@@ -16,8 +16,9 @@ public/                # простой UI загрузки спецификац
 config/mapping.yml     # правила маппинга статусов/ошибок (без хардкода провайдера)
 examples/              # пример provider_api.yaml
 test/                  # тесты (minitest + rack-test)
-ТЗ_PayBridge.md        # ТЗ генератора
-ТЗ_бэкенд.md           # ТЗ бэкенда (для напарника)
+ТЗ_PayBridge.md        # ТЗ ядра-генератора + CLI (тимлид)
+ТЗ_напарник.md         # ТЗ: проверка/качество/документация/демо (2-й участник)
+ТЗ_веб.md              # ТЗ веб-интерфейса (3-й участник)
 ```
 
 ## Бэкенд: запуск
@@ -55,6 +56,14 @@ ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 ```
 
 Результат — в `./output/` (`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`, `base_service.rb`).
+
+Уточнения того, что нельзя достать из структуры OpenAPI (единица суммы, кодировка подписи,
+условная обязательность полей) — через опциональный overrides-файл; чего в нём нет, ядро
+выведет эвристикой и честно предупредит:
+
+```bash
+ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --overrides examples/overrides.novapay.yml
+```
 
 ## Тесты
 

@@ -33,6 +33,7 @@ module Paybridge
         o.on('--provider NAME', 'Имя провайдера (напр. novapay)') { |v| options[:provider] = v }
         o.on('--output DIR', 'Каталог для результатов (по умолчанию ./output)') { |v| options[:output] = v }
         o.on('--config PATH', 'Файл правил маппинга') { |v| options[:config] = v }
+        o.on('--overrides PATH', 'Файл уточнений (amount_unit, signature_encoding, required_if)') { |v| options[:overrides] = v }
         o.on('--lang LANG', 'Язык генерации (поддерживается только ruby)') { |v| options[:lang] = v }
         o.on('-h', '--help', 'Показать справку') { puts o; exit 0 }
       end
@@ -48,10 +49,11 @@ module Paybridge
     end
 
     def run(options)
-      config = Paybridge.load_config(options[:config])
+      config    = Paybridge.load_config(options[:config])
+      overrides = Paybridge.load_overrides(options[:overrides])
 
       say 'Parsing spec...'
-      spec = SpecParser.new(options[:spec], options[:provider], config).parse
+      spec = SpecParser.new(options[:spec], options[:provider], config, overrides).parse
       print_summary(spec)
 
       FileUtils.mkdir_p(options[:output])

@@ -1,0 +1,14 @@
+# Уточнения того, что нельзя достать из СТРУКТУРЫ OpenAPI (только из текста/канона).
+# Это МЕХАНИЗМ, а не хардкод провайдера в ядре: любой провайдер может дать свой файл.
+# Передаётся так:
+#   integrate --spec examples/provider_api.yaml --provider novapay \
+#             --overrides examples/overrides.novapay.yml
+#
+# Все поля необязательны. Чего нет здесь — ядро выведет эвристикой и предупредит.
+
+amount_unit: minor          # minor | major — сумма в минорных единицах (копейки)
+signature_encoding: hex     # hex | base64 — кодировка HMAC-подписи webhook
+
+required_if:                 # поле применимо только при данном значении recipient.type
+  bank_code: sbp
+  card_number: card

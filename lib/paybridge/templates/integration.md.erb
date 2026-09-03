@@ -71,7 +71,7 @@
 ### Проверка подписи
 
 ```
-<%= spec.webhook.signature_header %> = hex( HMAC-<%= spec.webhook.signature_alg %>(request_body, credentials.<%= spec.webhook.callback_secret_field %>) )
+<%= spec.webhook.signature_header %> = <%= spec.webhook.signature_encoding %>( HMAC-<%= spec.webhook.signature_alg %>(request_body, credentials.<%= spec.webhook.callback_secret_field %>) )
 ```
 
 `verify_signature!` сравнивает подпись за постоянное время; несовпадение → `Provider::UnauthorizedError`.

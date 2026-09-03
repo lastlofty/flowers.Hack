@@ -27,7 +27,7 @@ module Paybridge
     # Входящие уведомления.
     Webhook = Struct.new(
       :path, :events, :event_actions, :id_field,
-      :signature_header, :signature_alg, :callback_secret_field,
+      :signature_header, :signature_alg, :signature_encoding, :callback_secret_field,
       keyword_init: true
     )
 

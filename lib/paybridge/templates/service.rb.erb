@@ -2,6 +2,9 @@
 
 require 'openssl'
 require 'json'
+<% if spec.webhook && spec.webhook.signature_encoding == 'base64' -%>
+require 'base64'
+<% end -%>
 
 # ────────────────────────────────────────────────────────────────────────
 # СГЕНЕРИРОВАНО PayBridge из <%= File.basename(spec_source) %>
@@ -127,7 +130,11 @@ module Provider
     def verify_signature!(payload)
       secret   = provider.credentials.fetch('<%= spec.webhook.callback_secret_field %>')
       raw_body = payload.is_a?(String) ? payload : JSON.generate(payload)
+<% if spec.webhook.signature_encoding == 'base64' -%>
+      expected = Base64.strict_encode64(OpenSSL::HMAC.digest('<%= spec.webhook.signature_alg %>', secret, raw_body))
+<% else -%>
       expected = OpenSSL::HMAC.hexdigest('<%= spec.webhook.signature_alg %>', secret, raw_body)
+<% end -%>
       received = payload.is_a?(Hash) ? payload['_signature'] : nil
 
       return if received && secure_compare(expected, received)
