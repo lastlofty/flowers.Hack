@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PayBridge — генератор интеграций</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; }
+    form { display: grid; gap: 12px; padding: 16px; border: 1px solid #8883; border-radius: 10px; }
+    label { font-weight: 600; }
+    input[type=text] { padding: 8px; border: 1px solid #8886; border-radius: 6px; }
+    button { padding: 10px 16px; border: 0; border-radius: 6px; background: #2f6fed; color: #fff; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    pre { background: #8881; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    .files a { display: inline-block; margin: 4px 8px 4px 0; }
+    .warn { color: #c67; }
+    .err { color: #d33; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>PayBridge</h1>
+  <p>Загрузите <code>provider_api.yaml</code> — получите сгенерированную интеграцию.</p>
+
+  <form id="f">
+    <div>
+      <label>Спецификация (YAML)</label><br>
+      <input type="file" name="spec" id="spec" accept=".yaml,.yml" required>
+    </div>
+    <div>
+      <label>Провайдер</label><br>
+      <input type="text" name="provider" id="provider" value="novapay" pattern="[a-z][a-z0-9_]{1,32}" required>
+    </div>
+    <button type="submit" id="go">Сгенерировать</button>
+  </form>
+
+  <div id="out"></div>
+
+  <script>
+    const f = document.getElementById('f');
+    const out = document.getElementById('out');
+    const go = document.getElementById('go');
+
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      out.innerHTML = 'Генерация…';
+      go.disabled = true;
+      try {
+        const data = new FormData();
+        data.append('spec', document.getElementById('spec').files[0]);
+        data.append('provider', document.getElementById('provider').value);
+        const res = await fetch('/api/integrations', { method: 'POST', body: data });
+        const body = await res.json();
+        if (!res.ok) {
+          out.innerHTML = '<p class="err">Ошибка: ' + (body.error?.message || res.status) + '</p>';
+          return;
+        }
+        render(body);
+      } catch (err) {
+        out.innerHTML = '<p class="err">Сеть недоступна: ' + err + '</p>';
+      } finally {
+        go.disabled = false;
+      }
+    });
+
+    function render(b) {
+      const eps = b.endpoints.map(e => `${e.method} ${e.path} (${e.role})`).join('\n');
+      const files = b.files.map(n =>
+        `<a href="/api/integrations/${b.id}/files/${n}" target="_blank">${n}</a>`).join('');
+      const warns = (b.warnings || []).length
+        ? '<p class="warn">Предупреждения:<br>' + b.warnings.join('<br>') + '</p>' : '';
+      out.innerHTML =
+        `<h3>Интеграция ${b.id} · ${b.provider}</h3>` +
+        `<pre>${eps}</pre>` + warns +
+        `<div class="files">${files} · ` +
+        `<a href="/api/integrations/${b.id}/archive">скачать zip</a></div>`;
+    }
+  </script>
+</body>
+</html>
