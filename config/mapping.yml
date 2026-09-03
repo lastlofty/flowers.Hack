@@ -9,12 +9,15 @@ status_map:
   pending: in_progress
   processing: in_progress
   in_progress: in_progress
+  created: in_progress
+  sent: in_progress
   hold: in_progress
   completed: approved
   succeeded: approved
   success: approved
   approved: approved
   paid: approved
+  done: approved
   failed: rejected
   error: rejected
   declined: rejected

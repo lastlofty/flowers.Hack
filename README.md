@@ -42,10 +42,33 @@ UI — на `http://localhost:9292/`.
 > фасада заменяются на реальную генерацию — контракт (`Generation`,
 > `GenerationError`, сигнатура) при этом не меняется.
 
+## Генератор: запуск (CLI)
+
+```bash
+ruby exe/integrate --spec examples/provider_api.yaml --provider novapay
+```
+
+Универсальность — тот же генератор на другом провайдере:
+
+```bash
+ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
+```
+
+Результат — в `./output/` (`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`, `base_service.rb`).
+
 ## Тесты
 
 ```bash
-bundle exec ruby -Itest test/test_api.rb
+rake test
+```
+
+Или по отдельности:
+
+```bash
+ruby -Ilib -Itest test/test_spec_parser.rb
+ruby -Ilib -Itest test/test_generators.rb
+ruby -Ilib -Itest test/test_universality.rb
+ruby -Ilib -Itest test/test_api.rb
 ```
 
 ## API

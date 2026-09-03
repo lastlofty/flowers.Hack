@@ -15,7 +15,7 @@ module Paybridge
       Result = Struct.new(:ruby, :amount, :currency, :external_id_field, keyword_init: true)
 
       AMOUNT_HINT   = /\b(amount|sum|total)\b/i
-      MINOR_HINT    = /копей|kopeck|minor|cents?|копейк/i
+      MINOR_HINT    = /копей|kopeck|копейк|цент|cents?|minor/i
       CURRENCY_HINT = /\b(currency|ccy)\b/i
       EXTERNAL_HINT = /\b(external_id|merchant_id|order_id|reference)\b/i
 

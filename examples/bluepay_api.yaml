@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: BluePay Transfer API
+  description: |
+    Второй тестовый провайдер для проверки универсальности генератора.
+    Отличается от NovaPay: карты вместо СБП, USD в центах, другой заголовок
+    авторизации, другой набор статусов, нет отмены и нет idempotency-ключа.
+  version: 2.1.0
+
+servers:
+  - url: https://sandbox.bluepay.example/api
+    description: Sandbox
+  - url: https://api.bluepay.example/api
+    description: Production
+
+paths:
+  /transfers:
+    post:
+      summary: Создать перевод
+      description: |
+        Создаёт перевод на карту получателя. Сумма — в центах.
+        Минимальная сумма — 1 USD (100 центов).
+      operationId: createTransfer
+      security:
+        - ApiTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+            examples:
+              card_transfer:
+                summary: Перевод на карту
+                value:
+                  amount: 500
+                  currency: USD
+                  reference: "ref_777"
+                  recipient:
+                    type: card
+                    card_number: "4111111111111111"
+                    holder_name: "IVAN PETROV"
+      responses:
+        '201':
+          description: Перевод создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+              example:
+                id: "bp_5510aa"
+                reference: "ref_777"
+                status: created
+                amount: 500
+                currency: USD
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: validation_error
+                  message: "amount below minimum"
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /transfers/{transfer_id}:
+    get:
+      summary: Статус перевода
+      operationId: getTransfer
+      security:
+        - ApiTokenAuth: []
+      parameters:
+        - name: transfer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Статус
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '404':
+          description: Не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /hooks/transfer:
+    post:
+      summary: Webhook смены статуса
+      description: |
+        BluePay шлёт POST на зарегистрированный URL.
+        Подпись — в заголовке X-BluePay-Signature (HMAC-SHA512).
+      operationId: transferWebhook
+      security: []
+      parameters:
+        - name: X-BluePay-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA512 подпись тела
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+            examples:
+              done:
+                value:
+                  event: transfer.done
+                  transfer_id: "bp_5510aa"
+                  status: done
+              failed:
+                value:
+                  event: transfer.failed
+                  transfer_id: "bp_5510aa"
+                  status: failed
+                  error:
+                    code: card_declined
+      responses:
+        '200':
+          description: Принято
+
+components:
+  securitySchemes:
+    ApiTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Token
+      description: Токен, выдаётся при подключении
+
+  schemas:
+    CreateTransferRequest:
+      type: object
+      required: [amount, currency, reference, recipient]
+      properties:
+        amount:
+          type: integer
+          description: Сумма в центах
+          minimum: 100
+          example: 500
+        currency:
+          type: string
+          enum: [USD]
+          example: USD
+        reference:
+          type: string
+          description: merchant_id операции
+          maxLength: 64
+          example: "ref_777"
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+
+    Recipient:
+      type: object
+      required: [type, card_number]
+      properties:
+        type:
+          type: string
+          enum: [card]
+          example: card
+        card_number:
+          type: string
+          description: Номер карты
+          example: "4111111111111111"
+        holder_name:
+          type: string
+          description: Имя держателя
+          example: "IVAN PETROV"
+
+    TransferResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        reference:
+          type: string
+        status:
+          type: string
+          enum: [created, sent, done, failed]
+        amount:
+          type: integer
+        currency:
+          type: string
+        error:
+          $ref: '#/components/schemas/TransferError'
+
+    TransferError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    WebhookPayload:
+      type: object
+      required: [event, transfer_id, status]
+      properties:
+        event:
+          type: string
+          enum:
+            - transfer.done
+            - transfer.failed
+            - transfer.sent
+        transfer_id:
+          type: string
+        status:
+          type: string
+          enum: [created, sent, done, failed]
+        error:
+          $ref: '#/components/schemas/TransferError'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/TransferError'
+
+  responses:
+    Unauthorized:
+      description: Невалидный токен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Лимит запросов
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Внутренняя ошибка
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
