@@ -61,4 +61,38 @@ module Paybridge
   rescue SpecParser::ParseError => e
     raise GenerationError, e.message
   end
+
+  # Dry-run: только разбор спецификации, без генерации файлов.
+  # Для эндпоинта POST /api/validate (превью «что распознано»).
+  def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG)
+    config = load_config(config_path)
+    spec   = SpecParser.new(spec_path, provider, config).parse
+
+    {
+      provider: provider,
+      title: spec.title,
+      version: spec.version,
+      base_url: spec.base_url,
+      endpoints: spec.endpoints.map do |e|
+        { method: e.http_method.upcase, path: e.path, role: e.role.to_s }
+      end,
+      auth: spec.auth && {
+        type: spec.auth.scheme_type,
+        header: spec.auth.header_name,
+        credentials_field: spec.auth.credentials_field
+      },
+      idempotency_header: spec.idempotency_header,
+      status_map: spec.status_map,
+      error_map: spec.error_map,
+      webhook: spec.webhook && {
+        path: spec.webhook.path,
+        events: spec.webhook.events,
+        signature_header: spec.webhook.signature_header,
+        signature_alg: spec.webhook.signature_alg
+      },
+      warnings: spec.report.warnings
+    }
+  rescue SpecParser::ParseError => e
+    raise GenerationError, e.message
+  end
 end
