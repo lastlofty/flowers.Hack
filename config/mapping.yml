@@ -12,12 +12,14 @@ status_map:
   created: in_progress
   sent: in_progress
   hold: in_progress
+  authorized: in_progress
   completed: approved
   succeeded: approved
   success: approved
   approved: approved
   paid: approved
   done: approved
+  captured: approved
   failed: rejected
   error: rejected
   declined: rejected

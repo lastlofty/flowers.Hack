@@ -188,7 +188,8 @@ module Paybridge
         id: 'op_test',
         payout_requisite: {
           'sbp'  => { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' },
-          'card' => { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' }
+          'card' => { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' },
+          'sepa' => { 'iban' => 'DE89370400440532013000', 'holder_name' => 'IVAN PETROV' }
         },
         provider_operation_id: 'op_prov',
         idempotency_key: 'idem_1'

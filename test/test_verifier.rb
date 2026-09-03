@@ -33,6 +33,13 @@ class TestVerifier < Minitest::Test
            "провал: #{report.cases.reject(&:ok).map { |c| "#{c.name} #{c.detail}" }.join('; ')}"
   end
 
+  def test_europay_scenarios_pass
+    report = verify('europay_api.yaml', 'europay')
+    refute_empty report.cases
+    assert report.all_passed?,
+           "провал: #{report.cases.reject(&:ok).map { |c| "#{c.name} #{c.detail}" }.join('; ')}"
+  end
+
   def test_report_counts
     report = verify('provider_api.yaml', 'novapay')
     assert_equal report.cases.size, report.passed + report.failed

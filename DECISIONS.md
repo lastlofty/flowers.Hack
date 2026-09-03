@@ -1,0 +1,76 @@
+# Решения и допущения (PayBridge)
+
+Документ фиксирует, какие решения приняты и на каком основании. Часть данных нельзя
+достать из структуры OpenAPI — здесь честно указано, что взято из структуры, что из
+текста/канона, а что настраивается через overrides.
+
+## Канон (подтверждён на QA-сессии)
+
+- Вход — всегда **OpenAPI/Swagger** (структура), не свободный текст.
+- Основной интерфейс — **CLI** (веб — отдельный доп. слой).
+- `request_method` в `create_request(operation, request_method)` — **логический тип
+  действия** (payment_method шлюза / `status` / `check`), НЕ HTTP-метод.
+- Настоящий `Provider::BaseService` / harness не предоставляются — контракт **моделируем
+  сами** (`base_service.rb`).
+- Маппинг статусов, если в спеке нет таблицы, — канон из задания:
+  `pending/processing → in_progress`, `completed → approved`, `failed/cancelled → rejected`.
+- Для NovaPay из задания канон: сумма в **копейках**; `bank_code` обязателен при
+  `type=sbp`; подпись = **HMAC-SHA256(raw body, secret) → hex**.
+
+## Что откуда берётся
+
+| Данные | Источник | Как |
+|--------|----------|-----|
+| Методы, параметры, схемы | структура | `paths`, `requestBody`, `responses` |
+| Авторизация | структура | `securitySchemes` (apiKey header / http bearer / http basic) |
+| Идемпотентность | структура | параметр с именем `~idempotency` |
+| Enum статусов и ошибок | структура | `enum` в схемах ответов |
+| Webhook, события, заголовок подписи | структура | путь `~webhook/hook`, `enum` события, header `~signature` |
+| Маппинг статусов → внутренние | **канон** | `config/mapping.yml` (не хардкод в ядре) |
+| Маппинг HTTP-кодов → действия | **канон** | `config/mapping.yml` |
+| **Единица суммы** (minor/major) | эвристика/overrides | по `description`/`minimum`; иначе overrides.amount_unit + warning |
+| **Кодировка подписи** (hex/base64) | overrides | в OpenAPI не выражается; иначе 'hex' + warning |
+| **Условная обязательность полей** | текст/overrides | из `description` (`type=…`); иначе overrides.required_if + warning |
+
+Принцип: **из структуры — автоматически; неоднозначное — warning + overrides**, но
+никогда молча. Overrides — это механизм (любой провайдер даёт свой файл), а не привязка
+ядра к провайдеру.
+
+## Допущения о контракте платформы
+
+Так как настоящий контракт не предоставлен, сгенерированный сервис опирается на:
+
+- `operation.amount`, `operation.id`, `operation.provider_operation_id`,
+  `operation.idempotency_key`.
+- `operation.payout_requisite` — вложенные реквизиты, сгруппированные по типу
+  (`sbp` / `card` / `sepa` …); поля берутся через `dig(group, field)`.
+- `provider.credentials.fetch(<field>)` — секреты (`api_key` / `token` /
+  `callback_secret` / `username`+`password`).
+- Хелперы `success(data)` / `failure(code, message)` и ошибки `RateLimitError`,
+  `UnauthorizedError` из `BaseService`.
+
+Если реальный контракт отличается — правится `base_service.rb` и шаблон сервиса, ядро
+разбора не меняется.
+
+## Упрощения (известные, задокументированы)
+
+- **Подпись webhook** читается из `payload['_signature']`, тогда как в бою она приходит
+  в HTTP-заголовке. Подпись считается по телу БЕЗ `_signature` (самосогласовано и
+  проверяемо). В боевом контроллере — прокинуть заголовок в `process_callback`.
+- **Статус `refunded`** трактуется как отклонение (нет отдельного внутреннего статуса).
+- Только выплаты (payout). Депозиты — открытый вопрос.
+
+## Точки расширения
+
+- Новые статусы/коды/действия — `config/mapping.yml`.
+- Провайдер-специфика, не выражаемая структурой — overrides-файл
+  (`amount_unit`, `signature_encoding`, `required_if`).
+- Новые языки/шаблоны — генераторы в `lib/paybridge/generators/` + `templates/`.
+
+## Проверка
+
+- `rake test` — юниты (Report, мапперы) + интеграционные (парсер, генераторы, verify,
+  запуск сгенерированных тестов, API).
+- `integrate verify --dir output` — прогон `fixtures.json` против сгенерированного сервиса.
+- Корпус: 4 разных провайдера — NovaPay (СБП/копейки), BluePay (карты/центы),
+  SwiftPay (Bearer), EuroPay (SEPA/евро-майор).

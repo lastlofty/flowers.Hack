@@ -9,13 +9,14 @@
 ## Состав репозитория
 
 ```
-lib/paybridge/         # ядро-генератор (парсер, мапперы, IR)  — WIP
-lib/paybridge.rb       # фасад Paybridge.generate (сейчас заглушка)
-app/                   # веб-бэкенд (Sinatra) поверх генератора
+lib/paybridge/         # ядро: парсер, мапперы, IR, генераторы, verifier
+lib/paybridge.rb       # фасад: generate / parse_only / load_overrides
+app/                   # веб-бэкенд (Sinatra) поверх генератора (3-й участник)
 public/                # простой UI загрузки спецификации
 config/mapping.yml     # правила маппинга статусов/ошибок (без хардкода провайдера)
-examples/              # пример provider_api.yaml
-test/                  # тесты (minitest + rack-test)
+examples/              # 4 провайдера: novapay, bluepay, swiftpay, europay (+ overrides)
+test/                  # тесты (minitest + rack-test), test/unit/ — юниты
+DECISIONS.md           # канон, допущения, точки расширения
 ТЗ_PayBridge.md        # ТЗ ядра-генератора + CLI (тимлид)
 ТЗ_напарник.md         # ТЗ: проверка/качество/документация/демо (2-й участник)
 ТЗ_веб.md              # ТЗ веб-интерфейса (3-й участник)
@@ -64,6 +65,15 @@ ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 
 ```bash
 ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --overrides examples/overrides.novapay.yml
+```
+
+## Предпросмотр без генерации (validate)
+
+Показать, что распознал парсер (методы, авторизация, статусы, ошибки, webhook,
+предупреждения), не создавая файлов:
+
+```bash
+ruby exe/integrate validate --spec examples/europay_api.yaml --provider europay
 ```
 
 ## Проверка сгенерированной интеграции

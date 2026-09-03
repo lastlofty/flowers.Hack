@@ -41,4 +41,8 @@ class TestGeneratedSpecRuns < Minitest::Test
   def test_swiftpay_generated_spec
     assert_spec_passes('swiftpay_api.yaml', 'swiftpay')
   end
+
+  def test_europay_generated_spec
+    assert_spec_passes('europay_api.yaml', 'europay')
+  end
 end

@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: EuroPay SEPA API
+  description: |
+    Четвёртый тестовый провайдер (максимально другой формы). Отличия:
+    SEPA/IBAN вместо СБП/карт, сумма В ЦЕЛЫХ ЕВРО (не минорная), валюта EUR,
+    статусы authorized/captured/declined/refunded, заголовок авторизации X-Auth-Token.
+  version: 3.0.0
+
+servers:
+  - url: https://sandbox.europay.example/v3
+    description: Sandbox
+  - url: https://api.europay.example/v3
+    description: Production
+
+paths:
+  /payments:
+    post:
+      summary: Создать платёж
+      description: Сумма указывается в целых евро.
+      operationId: createPayment
+      security:
+        - AuthToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+            examples:
+              sepa:
+                value:
+                  amount: 250
+                  currency: EUR
+                  order_id: "ord_9000"
+                  recipient:
+                    type: sepa
+                    iban: "DE89370400440532013000"
+                    holder_name: "IVAN PETROV"
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              example:
+                id: "ep_777"
+                order_id: "ord_9000"
+                status: authorized
+        '401':
+          description: Невалидный токен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_iban
+                  message: "IBAN failed checksum"
+        '500':
+          description: Внутренняя ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/{payment_id}:
+    get:
+      summary: Статус платежа
+      operationId: getPayment
+      security:
+        - AuthToken: []
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Статус
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhooks/payment:
+    post:
+      summary: Webhook смены статуса
+      description: Подпись в заголовке X-EuroPay-Signature (HMAC-SHA256).
+      operationId: paymentWebhook
+      security: []
+      parameters:
+        - name: X-EuroPay-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 подпись тела
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+            examples:
+              captured:
+                value:
+                  event: payment.captured
+                  payment_id: "ep_777"
+                  status: captured
+              declined:
+                value:
+                  event: payment.declined
+                  payment_id: "ep_777"
+                  status: declined
+                  error:
+                    code: insufficient_funds
+      responses:
+        '200':
+          description: Принято
+
+components:
+  securitySchemes:
+    AuthToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+      description: Токен авторизации
+
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      required: [amount, currency, order_id, recipient]
+      properties:
+        amount:
+          type: integer
+          description: Сумма в евро
+          minimum: 1
+          example: 250
+        currency:
+          type: string
+          enum: [EUR]
+          example: EUR
+        order_id:
+          type: string
+          maxLength: 64
+          example: "ord_9000"
+        recipient:
+          $ref: '#/components/schemas/Recipient'
+
+    Recipient:
+      type: object
+      required: [type, iban]
+      properties:
+        type:
+          type: string
+          enum: [sepa]
+          example: sepa
+        iban:
+          type: string
+          description: IBAN получателя
+          example: "DE89370400440532013000"
+        holder_name:
+          type: string
+          example: "IVAN PETROV"
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        status:
+          type: string
+          enum: [authorized, captured, declined, refunded]
+
+    WebhookPayload:
+      type: object
+      required: [event, payment_id, status]
+      properties:
+        event:
+          type: string
+          enum:
+            - payment.captured
+            - payment.declined
+            - payment.refunded
+        payment_id:
+          type: string
+        status:
+          type: string
+          enum: [authorized, captured, declined, refunded]
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string

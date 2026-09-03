@@ -13,6 +13,7 @@ module Paybridge
 
     def start(argv)
       return verify(argv[1..]) if argv.first == 'verify'
+      return validate(argv[1..]) if argv.first == 'validate'
 
       options = parse_options(argv)
       run(options)
@@ -26,6 +27,54 @@ module Paybridge
     end
 
     private
+
+    # integrate validate --spec provider_api.yaml --provider <name>
+    # Разбор без генерации: показать, что распознал парсер.
+    def validate(argv)
+      opts = { config: Paybridge::DEFAULT_CONFIG }
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate validate --spec <file> --provider <name>'
+        o.on('--spec PATH') { |v| opts[:spec] = v }
+        o.on('--provider NAME') { |v| opts[:provider] = v }
+        o.on('--overrides PATH') { |v| opts[:overrides] = v }
+        o.on('--config PATH') { |v| opts[:config] = v }
+      end.parse!(argv)
+      abort 'Не указан --spec' unless opts[:spec]
+      abort 'Не указан --provider' unless opts[:provider]
+
+      model = Paybridge.parse_only(
+        spec_path: opts[:spec], provider: opts[:provider],
+        config_path: opts[:config], overrides_path: opts[:overrides]
+      )
+      print_model(model)
+      0
+    rescue Paybridge::GenerationError => e
+      warn "\e[31mОшибка разбора:\e[0m #{e.message}"
+      1
+    end
+
+    def print_model(m)
+      puts "Провайдер: #{m[:provider]} (#{m[:title]} v#{m[:version]})"
+      puts "BASE_URL:  #{m[:base_url]}"
+      puts "Методы (#{m[:endpoints].size}):"
+      m[:endpoints].each { |e| puts "  #{e[:method].ljust(5)} #{e[:path]}  [#{e[:role]}]" }
+      if m[:auth]
+        puts "Авторизация: #{m[:auth][:type]} (#{m[:auth][:header]})"
+      end
+      puts "Idempotency: #{m[:idempotency_header]}" if m[:idempotency_header]
+      puts 'Маппинг статусов:'
+      m[:status_map].each { |p, i| puts "  #{p.ljust(12)} -> #{i}" }
+      puts "Ошибки: #{m[:error_map].map { |k, v| "#{k}=#{v}" }.join(', ')}"
+      if m[:webhook]
+        w = m[:webhook]
+        puts "Webhook: #{w[:path]} | события: #{w[:events].join(', ')}"
+        puts "  подпись: #{w[:signature_header]} (HMAC-#{w[:signature_alg]})" if w[:signature_header]
+      end
+      return if m[:warnings].empty?
+
+      puts "\e[33mПредупреждения (#{m[:warnings].size}):\e[0m"
+      m[:warnings].each { |w| puts "  - #{w}" }
+    end
 
     # integrate verify --dir output/
     def verify(argv)
