@@ -8,9 +8,9 @@ ruby '>= 3.0'
 
 # --- Веб-бэкенд (обёртка над генератором) ---
 gem 'sinatra', '~> 4.0'      # веб-фреймворк (open source)
-gem 'puma',    '~> 6.4'      # rack-сервер
+gem 'webrick', '~> 1.8'      # rack-сервер (pure Ruby, без нативной сборки)
 gem 'rackup',  '~> 2.1'      # запуск rack-приложения
-gem 'rubyzip', '~> 2.3'      # zip-архив с результатом
+gem 'rubyzip', '~> 3.0'      # zip-архив с результатом
 
 group :test do
   gem 'minitest',  '~> 5.20' # входит в stdlib, зафиксирована версия для CI

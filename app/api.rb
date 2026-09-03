@@ -19,6 +19,9 @@ module Paybridge
       set :raise_errors, false
       enable :static
       set :public_folder, File.expand_path('../public', __dir__)
+      # JSON-API без браузерных сессий: разрешаем любые хосты
+      # (Sinatra 4 иначе отвечает 403 на Host, которого нет в списке).
+      set :host_authorization, { permitted_hosts: [] }
     end
 
     helpers do

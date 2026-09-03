@@ -41,7 +41,7 @@ module Paybridge
       error_mapper = Mappers::ErrorMapper.new(@config, @report)
       error_map, http_symbol = error_mapper.build(http_codes)
 
-      req_schema = create && resolve_deep(request_schema(create))
+      req_schema = create && resolve_deep(create.request_schema)
       req = Mappers::RequestMapper.new(@report).build(req_schema)
 
       IR::Spec.new(
@@ -118,7 +118,7 @@ module Paybridge
     end
 
     def classify(path, http_method, _op)
-      return :webhook if path.match?(/webhook|callback/i)
+      return :webhook if path.match?(/webhook|callback|hook|notif/i)
       return :cancel  if http_method == 'post' && path.match?(/cancel/i)
       return :status  if http_method == 'get' && path.match?(/\{[^}]+\}/)
       return :create  if http_method == 'post' && !path.match?(/\{[^}]+\}/)
@@ -211,7 +211,7 @@ module Paybridge
     def build_webhook(endpoint, status_map)
       return nil unless endpoint
 
-      schema = resolve_deep(request_schema(endpoint))
+      schema = resolve_deep(endpoint.request_schema)
       events = dig(schema, 'properties', 'event', 'enum') || []
       sig    = endpoint.header_params.find { |p| p['name'].to_s.match?(/signature/i) }
       desc   = @doc.dig('paths', endpoint.path, endpoint.http_method, 'description').to_s
