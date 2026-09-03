@@ -9,6 +9,7 @@ require_relative 'paybridge/spec_parser'
 require_relative 'paybridge/generators/service_generator'
 require_relative 'paybridge/generators/docs_generator'
 require_relative 'paybridge/generators/fixtures_generator'
+require_relative 'paybridge/generators/test_generator'
 require_relative 'paybridge/verifier'
 require_relative 'paybridge/cli'
 
@@ -59,7 +60,9 @@ module Paybridge
       'INTEGRATION.md' =>
         Generators::DocsGenerator.new(spec, spec_source: source, config: config).render,
       'fixtures.json' =>
-        Generators::FixturesGenerator.new(spec, spec_source: source, config: config).render
+        Generators::FixturesGenerator.new(spec, spec_source: source, config: config).render,
+      "#{provider}_service_spec.rb" =>
+        Generators::TestGenerator.new(spec, spec_source: source, config: config).render
     }
 
     Generation.new(

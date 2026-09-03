@@ -1,0 +1,103 @@
+# frozen_string_literal: true
+
+# ────────────────────────────────────────────────────────────────────────
+# СГЕНЕРИРОВАНО PayBridge. Исполняемый тест интеграции.
+# Гоняет fixtures.json против <%= spec.provider_class %>: create/status/callback.
+# Запуск:  ruby <%= spec.provider_name %>_service_spec.rb
+# Рядом должны лежать: base_service.rb, <%= spec.provider_name %>_service.rb, fixtures.json
+# ────────────────────────────────────────────────────────────────────────
+require 'minitest/autorun'
+require 'json'
+require 'openssl'
+require 'base64'
+require_relative 'base_service'
+require_relative '<%= spec.provider_name %>_service'
+
+class <%= spec.provider_class %>Test < Minitest::Test
+  FIXTURES = JSON.parse(File.read(File.join(__dir__, 'fixtures.json'))).freeze
+
+  # Мок HTTP-клиента: отдаёт заранее заданный ответ.
+  class MockClient
+    def initialize(response) = (@response = response)
+    def post(*_args, **_kw) = @response
+    def get(*_args, **_kw) = @response
+  end
+
+  def provider
+    Struct.new(:credentials).new({
+                                   'api_key' => 'k', 'token' => 'k', 'callback_secret' => 'test_secret',
+                                   'username' => 'u', 'password' => 'p'
+                                 })
+  end
+
+  def operation
+    Struct.new(:amount, :id, :payout_requisite, :provider_operation_id, :idempotency_key,
+               keyword_init: true).new(
+      amount: 15_000, id: 'op_test',
+      payout_requisite: {
+        'sbp'  => { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' },
+        'card' => { 'card_number' => '4111111111111111', 'holder_name' => 'IVAN PETROV' }
+      },
+      provider_operation_id: 'op_prov', idempotency_key: 'idem_1'
+    )
+  end
+
+  def service(status, body)
+    svc = Provider::<%= spec.provider_class %>.new(provider: provider)
+    response = Provider::HttpClient::Response.new(status: status, body: body)
+    svc.instance_variable_set(:@client, MockClient.new(response))
+    svc
+  end
+
+  def sign(payload, alg, encoding)
+    raw = JSON.generate(payload)
+    secret = 'test_secret'
+    if encoding == 'base64'
+      Base64.strict_encode64(OpenSSL::HMAC.digest(alg, secret, raw))
+    else
+      OpenSSL::HMAC.hexdigest(alg, secret, raw)
+    end
+  end
+
+  def test_create_request_success
+    fx = FIXTURES['create_request']
+    skip 'нет примера ответа 201' unless fx && fx['response_201'] && fx['expected_201']
+
+    result = service(201, fx['response_201']).create_request(operation)
+    assert result.success?, "ожидался success, получено #{result.code}"
+    assert_equal fx['expected_201']['operation_status'].to_s, result.data[:status].to_s
+  end
+
+  def test_fetch_status_success
+    fx = FIXTURES['fetch_status']
+    skip 'нет примера статуса' unless fx && fx['response_200'] && fx['expected_200']
+
+    result = service(200, fx['response_200']).fetch_status(operation)
+    assert result.success?
+    assert_equal fx['expected_200']['operation_status'].to_s, result.data[:status].to_s
+  end
+
+  # По одному тесту на каждое событие webhook из фикстур.
+  callback = FIXTURES['callback'] || {}
+  sig_alg  = callback['signature_alg'] || 'SHA256'
+  sig_enc  = callback['signature_encoding'] || 'hex'
+  callback.each do |name, entry|
+    next unless entry.is_a?(Hash) && entry['payload']
+
+    define_method("test_callback_#{name}") do
+      payload = entry['payload'].dup
+      payload['_signature'] = sign(payload, sig_alg, sig_enc)
+      result = Provider::<%= spec.provider_class %>.new(provider: provider).process_callback(payload)
+
+      case entry['expected_operation_status']
+      when 'approved', 'in_progress'
+        assert result.success?
+        assert_equal entry['expected_operation_status'].to_s, result.data[:status].to_s
+      when 'rejected'
+        assert result.failed?
+      else
+        assert_instance_of Provider::Result, result
+      end
+    end
+  end
+end

@@ -80,7 +80,7 @@ class TestUniversality < Minitest::Test
       spec_path: File.expand_path('../examples/bluepay_api.yaml', __dir__),
       provider: 'bluepay'
     )
-    assert_equal %w[bluepay_service.rb INTEGRATION.md fixtures.json].sort,
+    assert_equal %w[bluepay_service.rb bluepay_service_spec.rb INTEGRATION.md fixtures.json].sort,
                  generation.files.keys.sort
     # статусы/коды известны конфигу, но единицу суммы и кодировку подписи
     # OpenAPI не выражает — генератор честно помечает эти допущения

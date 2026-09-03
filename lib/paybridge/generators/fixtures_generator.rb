@@ -68,7 +68,23 @@ module Paybridge
                                           'operation_status' => spec.status_map[example['status']] }
           end
         end
+        synthesize_status_example(block)
         block
+      end
+
+      # Если в спеке нет 2xx-примера со статусом, синтезируем его из enum статусов,
+      # чтобы fetch_status можно было проверить (verify / сгенерированные тесты).
+      def synthesize_status_example(block)
+        return if block.keys.any? { |k| k.start_with?('expected_') }
+
+        provider_status = spec.status_map.key('approved') ||
+                          spec.status_map.key('in_progress') ||
+                          spec.status_map.keys.first
+        return unless provider_status
+
+        block['response_200'] = { 'id' => 'op_sample', 'status' => provider_status }
+        block['expected_200'] = { 'status' => 'success',
+                                  'operation_status' => spec.status_map[provider_status] }
       end
 
       def callback_block

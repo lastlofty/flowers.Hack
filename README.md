@@ -55,7 +55,8 @@ ruby exe/integrate --spec examples/provider_api.yaml --provider novapay
 ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 ```
 
-Результат — в `./output/` (`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`, `base_service.rb`).
+Результат — в `./output/`: `<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`,
+`<provider>_service_spec.rb` (исполняемый тест) и `base_service.rb` (каркас платформы).
 
 Уточнения того, что нельзя достать из структуры OpenAPI (единица суммы, кодировка подписи,
 условная обязательность полей) — через опциональный overrides-файл; чего в нём нет, ядро

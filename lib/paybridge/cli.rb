@@ -87,7 +87,8 @@ module Paybridge
       generators = {
         'service' => Generators::ServiceGenerator.new(spec, spec_source: source, config: config),
         'integration guide' => Generators::DocsGenerator.new(spec, spec_source: source, config: config),
-        'test fixtures' => Generators::FixturesGenerator.new(spec, spec_source: source, config: config)
+        'test fixtures' => Generators::FixturesGenerator.new(spec, spec_source: source, config: config),
+        'executable test' => Generators::TestGenerator.new(spec, spec_source: source, config: config)
       }
 
       written = []
