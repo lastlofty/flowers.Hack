@@ -1,0 +1,54 @@
+# Правила преобразования, общие для всех провайдеров.
+# Ядро генератора не содержит хардкода конкретного провайдера — всё здесь.
+# Файл можно расширять новыми статусами/кодами без правки кода.
+
+# Статус провайдера -> статус Space Payments.
+# Ключи сравниваются в нижнем регистре. Неизвестный статус -> предупреждение
+# и значение из unknown_status_default.
+status_map:
+  pending: in_progress
+  processing: in_progress
+  in_progress: in_progress
+  hold: in_progress
+  completed: approved
+  succeeded: approved
+  success: approved
+  approved: approved
+  paid: approved
+  failed: rejected
+  error: rejected
+  declined: rejected
+  rejected: rejected
+  cancelled: rejected
+  canceled: rejected
+  refunded: refunded
+
+unknown_status_default: in_progress
+
+# HTTP-код провайдера -> внутренний код ошибки + рекомендованное действие.
+error_map:
+  "400": { code: validation_error,     action: reject }
+  "401": { code: invalid_credentials,  action: "alert ops, block provider" }
+  "402": { code: insufficient_balance, action: "retry later" }
+  "403": { code: forbidden,            action: reject }
+  "404": { code: not_found,            action: reject }
+  "409": { code: duplicate,            action: "treat as success (idempotent)" }
+  "422": { code: validation_error,     action: reject }
+  "429": { code: rate_limit,           action: "retry with backoff" }
+  "500": { code: internal_error,       action: "retry, alert ops" }
+  "502": { code: bad_gateway,          action: "retry, alert ops" }
+  "503": { code: service_unavailable,  action: "retry, alert ops" }
+
+# HTTP-код -> символ статуса ответа в контракте BaseService.
+http_symbol:
+  "400": bad_request
+  "401": unauthorized
+  "402": payment_required
+  "403": forbidden
+  "404": not_found
+  "409": conflict
+  "422": unprocessable_entity
+  "429": too_many_requests
+  "500": internal_server_error
+  "502": bad_gateway
+  "503": service_unavailable

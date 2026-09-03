@@ -1,0 +1,6 @@
+/output/
+/tmp/
+*.gem
+.bundle/
+vendor/bundle/
+.DS_Store

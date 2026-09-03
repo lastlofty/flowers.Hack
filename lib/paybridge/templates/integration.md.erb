@@ -1,0 +1,88 @@
+# <%= spec.title %> Integration Guide
+
+> Сгенерировано PayBridge из `<%= File.basename(spec_source) %>` (<%= spec.title %> v<%= spec.version %>).
+> Сервис: `Provider::<%= spec.provider_class %> < Provider::BaseService`.
+<% if spec.auth -%>
+
+## Авторизация
+
+- Тип: <%= spec.auth.scheme_type %>
+- Header: `<%= spec.auth.header_name %>: <credentials.<%= spec.auth.credentials_field %>>`
+- Хранение: `providers.credentials` (encrypted)
+<% end -%>
+
+## Конфигурация подключения
+
+| Переменная | Назначение | По умолчанию |
+|------------|-----------|--------------|
+| `<%= spec.base_url_env %>` | Базовый URL API | `<%= spec.base_url %>` |
+<% if spec.auth -%>
+| `credentials.<%= spec.auth.credentials_field %>` | Ключ авторизации | — (обязателен) |
+<% end -%>
+<% if spec.webhook && spec.webhook.signature_header -%>
+| `credentials.<%= spec.webhook.callback_secret_field %>` | Секрет для проверки подписи webhook | — (обязателен) |
+<% end -%>
+
+## Методы
+
+| Метод сервиса | Endpoint | Назначение | Idempotency |
+|---------------|----------|-----------|-------------|
+<% method_rows.each do |row| -%>
+| <%= row[:service] %> | <%= row[:endpoint] %> | <%= row[:purpose] %> | <%= row[:idempotency] %> |
+<% end -%>
+<% if spec.amount -%>
+
+## Формат данных
+
+<% if spec.amount[:minor_units] -%>
+- Сумма передаётся **в минорных единицах** (`operation.amount * 100`).<%= min_amount ? " Минимум — #{spec.amount[:min_major] * 100} (#{min_amount} #{spec.currency})." : '' %>
+<% end -%>
+<% if spec.currency -%>
+- Валюта — `<%= spec.currency %>`.
+<% end -%>
+<% if spec.external_id_field -%>
+- `<%= spec.external_id_field %>` — ID операции мерчанта (`operation.id`).
+<% end -%>
+<% end -%>
+
+## Маппинг статусов
+
+| Provider | Space Payments |
+|----------|----------------|
+<% spec.status_map.each do |provider, internal| -%>
+| <%= provider %> | <%= internal %> |
+<% end -%>
+
+## Обработка ошибок
+
+| HTTP | Внутренний код | Действие |
+|------|----------------|----------|
+<% spec.error_map.sort.each do |http, code| -%>
+| <%= http %> | `<%= code %>` | <%= error_action(http) %> |
+<% end -%>
+<% if spec.webhook -%>
+
+## Webhook
+
+- Путь: `POST <%= spec.webhook.path %>`
+- События: <%= spec.webhook.events.map { |e| "`#{e}`" }.join(', ') %>
+<% if spec.webhook.signature_header -%>
+
+### Проверка подписи
+
+```
+<%= spec.webhook.signature_header %> = hex( HMAC-<%= spec.webhook.signature_alg %>(request_body, credentials.<%= spec.webhook.callback_secret_field %>) )
+```
+
+`verify_signature!` сравнивает подпись за постоянное время; несовпадение → `Provider::UnauthorizedError`.
+
+> Заголовок `<%= spec.webhook.signature_header %>` приходит отдельно от тела. В боевом
+> контроллере прокиньте его в `process_callback` вместо чтения `payload['_signature']`.
+<% end -%>
+<% end -%>
+
+## Файлы интеграции
+
+- `<%= spec.provider_name %>_service.rb` — сервис (контракт `BaseService`).
+- `base_service.rb` — каркас платформы (предоставляется Space Payments).
+- `fixtures.json` — примеры запросов, ответов и уведомлений для тестов.
