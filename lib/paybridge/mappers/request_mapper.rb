@@ -14,7 +14,8 @@ module Paybridge
     #   * вложенный объект (реквизиты)      -> operation.payout_requisite.dig(group, field)
     #   * остальные скаляры                 -> operation.<field> (с предупреждением)
     class RequestMapper
-      Result = Struct.new(:ruby, :amount, :currency, :external_id_field, keyword_init: true)
+      Result = Struct.new(:ruby, :amount, :currency, :external_id_field, :required_requisite,
+                          keyword_init: true)
 
       AMOUNT_HINT   = /\b(amount|sum|total)\b/i
       MINOR_HINT    = /копей|kopeck|копейк|цент|cents?|minor/i
@@ -28,6 +29,7 @@ module Paybridge
         @currency = nil
         @external_id_field = nil
         @guessed_required_if = []
+        @required_requisite = []
       end
 
       def build(schema)
@@ -38,7 +40,8 @@ module Paybridge
           ruby: ruby,
           amount: @amount,
           currency: @currency,
-          external_id_field: @external_id_field
+          external_id_field: @external_id_field,
+          required_requisite: @required_requisite
         )
       end
 
@@ -103,6 +106,10 @@ module Paybridge
                     "requisite.dig(#{Safe.rb(group)}, #{Safe.rb(name)})"
                   end
           lines << "#{indent(depth)}#{Safe.hash_key(name)} #{value}"
+
+          if name != 'type' && group && required_for_group?(name, prop, required, group)
+            @required_requisite << [group, name]
+          end
         end
         @current_group = nil
         suffix = optional_present?(props, required, group) ? '.compact' : ''
@@ -166,6 +173,15 @@ module Paybridge
         return false if restricted.nil? || group.nil?
 
         restricted != group
+      end
+
+      # Поле обязательно для выбранного способа: оно в required, либо ограничено
+      # этим type через overrides/description.
+      def required_for_group?(name, prop, required, group)
+        return true if required.include?(name)
+
+        restriction = override_required_if(name) || prop['description'].to_s[/type=(\w+)/, 1]
+        restriction == group
       end
 
       def override_required_if(name)

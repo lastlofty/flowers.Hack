@@ -33,6 +33,11 @@ module Provider
 <% if min_amount -%>
       return failure(:unprocessable_entity, 'amount_too_low') if <%= amount_too_low_condition %>
 <% end -%>
+<% (spec.required_requisite || []).each do |group, field| -%>
+      if operation.payout_requisite.nil? || operation.payout_requisite.dig(<%= Safe.rb(group) %>, <%= Safe.rb(field) %>).nil?
+        return failure(:unprocessable_entity, 'missing_requisite', data: { field: <%= Safe.rb(field) %> })
+      end
+<% end -%>
       success
     end
 

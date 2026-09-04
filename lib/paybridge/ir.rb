@@ -49,6 +49,7 @@ module Paybridge
       :amount,               # { field:, minor_units:, min_major: } или nil
       :currency,             # 'RUB' или nil
       :external_id_field,    # 'external_id'
+      :required_requisite,   # [[group, field], ...] — обязательные реквизиты способа
       :request_payload_ruby, # готовый Ruby-литерал тела запроса (строка)
       :request_examples, :response_examples, :webhook_examples,
       :report,
