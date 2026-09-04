@@ -83,12 +83,38 @@ module Paybridge
 
     private
 
-    def load_yaml
-      raise ParseError, "Файл спецификации не найден: #{@spec_path}" unless File.exist?(@spec_path)
+    MAX_SPEC_BYTES = 1_000_000
 
-      YAML.safe_load(File.read(@spec_path), aliases: true)
+    def load_yaml
+      YAML.safe_load(read_spec_source, aliases: true)
     rescue Psych::SyntaxError => e
       raise ParseError, "Некорректный YAML: #{e.message}"
+    end
+
+    # Источник спецификации: локальный файл или http(s) URL.
+    def read_spec_source
+      return fetch_url(@spec_path) if @spec_path.to_s.match?(%r{\Ahttps?://}i)
+
+      raise ParseError, "Файл спецификации не найден: #{@spec_path}" unless File.exist?(@spec_path)
+
+      File.read(@spec_path)
+    end
+
+    def fetch_url(url)
+      require 'open-uri'
+      uri = URI.parse(url)
+      raise ParseError, "Неподдерживаемый URL: #{url}" unless %w[http https].include?(uri.scheme)
+
+      content = +''
+      uri.open('rb') do |io|
+        while (chunk = io.read(65_536))
+          content << chunk
+          raise ParseError, 'Спецификация по URL больше 1 МБ' if content.bytesize > MAX_SPEC_BYTES
+        end
+      end
+      content
+    rescue OpenURI::HTTPError, SocketError, Errno::ECONNREFUSED, Timeout::Error => e
+      raise ParseError, "Не удалось загрузить спецификацию по URL: #{e.message}"
     end
 
     def validate_openapi!

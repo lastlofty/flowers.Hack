@@ -17,3 +17,7 @@ group :test do
   gem 'minitest',  '~> 5.20' # входит в stdlib, зафиксирована версия для CI
   gem 'rack-test', '~> 2.1'
 end
+
+group :development do
+  gem 'rubocop', '~> 1.60', require: false
+end

@@ -1,5 +1,7 @@
 # PayBridge — генератор интеграций с платёжными провайдерами
 
+[![CI](https://github.com/lastlofty/flowers.Hack/actions/workflows/ci.yml/badge.svg)](https://github.com/lastlofty/flowers.Hack/actions/workflows/ci.yml)
+
 Кейс Space Payments: инструмент принимает OpenAPI 3.x-спецификацию провайдера
 (`provider_api.yaml`) и генерирует готовую интеграцию под контракт
 `Provider::BaseService` — Ruby-сервис, `INTEGRATION.md` и `fixtures.json`.
@@ -58,6 +60,12 @@ ruby exe/integrate --spec examples/provider_api.yaml --provider novapay
 
 ```bash
 ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
+```
+
+Спека может передаваться по **http(s) URL**, а не только файлом:
+
+```bash
+ruby exe/integrate --spec https://example.com/provider_api.yaml --provider novapay
 ```
 
 Результат — пять файлов в `./output/`: три основных артефакта
