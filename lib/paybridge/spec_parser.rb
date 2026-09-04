@@ -54,12 +54,13 @@ module Paybridge
         version: dig(@doc, 'info', 'version'),
         base_url: base_url,
         base_url_env: "#{@provider.upcase}_BASE_URL",
-        auth: build_auth,
+        auth: build_auth(create),
         idempotency_header: idempotency_header(endpoints),
         endpoints: endpoints,
         create_endpoint: create,
         status_endpoint: status,
         cancel_endpoint: cancel,
+        create_success_codes: create_success_codes(create),
         webhook: build_webhook(webhook_e, status_map),
         status_map: status_map,
         error_map: error_map,
@@ -156,15 +157,25 @@ module Paybridge
 
     # --- auth ------------------------------------------------------------
 
-    def build_auth
+    def build_auth(create)
       schemes = dig(@doc, 'components', 'securitySchemes') || {}
-      _name, scheme = schemes.first
+      requirement = security_requirement(create)
+
+      # Явный security: [] — операция без авторизации.
+      if requirement.is_a?(Array) && requirement.empty?
+        return nil
+      end
+
+      scheme_name = requirement && requirement.first.is_a?(Hash) ? requirement.first.keys.first : nil
+      scheme = scheme_name && schemes[scheme_name]
       if scheme.nil?
-        @report.warn('В спецификации не описаны securitySchemes — авторизация не сгенерирована')
+        @report.warn('Не удалось определить схему авторизации из security — заголовки будут пустыми')
         return nil
       end
 
       header, field, value = auth_shape(scheme)
+      return nil if header.nil? && value.nil? # неподдержанная схема
+
       IR::Auth.new(
         scheme_type: scheme['type'],
         location: scheme['in'],
@@ -172,6 +183,21 @@ module Paybridge
         credentials_field: field,
         header_value_ruby: value
       )
+    end
+
+    # security операции, затем глобальный security (учитывая явный []).
+    def security_requirement(create)
+      op_sec = create && @doc.dig('paths', create.path, create.http_method, 'security')
+      return op_sec unless op_sec.nil?
+
+      @doc['security']
+    end
+
+    # Успешные коды создания берём из спеки (не хардкодим 201).
+    def create_success_codes(create)
+      return [] unless create
+
+      create.response_codes.map(&:to_i).select { |c| c.between?(200, 299) }.sort
     end
 
     # По типу схемы возвращает [имя заголовка, поле credentials, Ruby-выражение значения].
@@ -188,8 +214,9 @@ module Paybridge
           ['Authorization', 'token', %q{"Bearer #{provider.credentials.fetch('token')}"}]
         end
       else
-        @report.warn("Неизвестный тип авторизации '#{scheme['type']}' — сгенерирован API-key заголовок")
-        [scheme['name'] || 'Authorization', 'api_key', "provider.credentials.fetch('api_key')"]
+        @report.warn("Схема авторизации '#{scheme['type']}' не поддержана — " \
+                     'заголовки пустые, настройте авторизацию вручную')
+        [nil, nil, nil]
       end
     end
 

@@ -67,8 +67,17 @@ module Provider
 <% if spec.webhook -%>
 
     def process_callback(payload)
+<% if spec.webhook.signature_header -%>
       verify_signature!(payload)
+<% else -%>
+      # ВНИМАНИЕ: спецификация не описывает подпись webhook — проверка НЕ выполняется.
+      # Настройте верификацию подписи вручную перед боевым использованием.
+<% end -%>
 
+<% if approve_events.empty? && reject_events.empty? -%>
+      # спецификация не даёт распознаваемых событий — все считаем неизвестными
+      failure(:unprocessable_entity, 'unknown_event')
+<% else -%>
       case payload['event']
 <% unless approve_events.empty? -%>
       when <%= approve_events.map { |e| Safe.rb(e) }.join(', ') %>
@@ -81,6 +90,7 @@ module Provider
       else
         failure(:unprocessable_entity, 'unknown_event')
       end
+<% end -%>
     end
 <% end -%>
 
@@ -94,10 +104,16 @@ module Provider
     def parse_create_response(_operation, response)
       case response.status
       when <%= create_success_codes %>
-        success(
-          provider_operation_id: response.body['id'],
-          status: map_status(response.body['status'])
-        )
+        body   = response.body.is_a?(Hash) ? response.body : {}
+        id     = body['id']
+        status = map_status(body['status'])
+        if id.nil? || status.nil?
+          # id/status отсутствуют или статус неизвестен — не выдаём success с nil
+          failure(:unprocessable_entity, 'incomplete_response',
+                  data: { id: id, provider_status: body['status'] })
+        else
+          success(provider_operation_id: id, status: status)
+        end
       else
         map_error(response)
       end
@@ -116,16 +132,16 @@ module Provider
     def error_symbol(http_status)
       HTTP_STATUS_SYMBOL.fetch(http_status, :internal_server_error)
     end
-<% if spec.auth -%>
 
     def auth_headers
-<% if auth_in_query? -%>
+<% if spec.auth.nil? -%>
+      {} # авторизация не требуется/не поддержана спецификацией
+<% elsif auth_in_query? -%>
       {} # ключ передаётся в query-параметре
 <% else -%>
       { <%= Safe.rb(spec.auth.header_name) %> => <%= spec.auth.header_value_ruby %> }
 <% end -%>
     end
-<% end -%>
 <% if spec.idempotency_header -%>
 
     def idempotency_key(operation)

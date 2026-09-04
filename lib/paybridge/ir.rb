@@ -42,6 +42,7 @@ module Paybridge
       :idempotency_header,   # напр. Idempotency-Key или nil
       :endpoints,
       :create_endpoint, :status_endpoint, :cancel_endpoint, :webhook,
+      :create_success_codes, # [200] или [201] — из спеки, не хардкод
       :status_map,           # { 'pending' => 'in_progress', ... }
       :error_map,            # { 400 => 'validation_error', ... }
       :http_symbol,          # { 400 => 'bad_request', ... }

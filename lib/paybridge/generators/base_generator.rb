@@ -88,9 +88,18 @@ module Paybridge
       end
 
       def create_success_codes
-        codes = [201]
-        codes << 409 if spec.idempotency_header && spec.error_map.key?(409)
+        codes = (spec.create_success_codes || []).dup
+        codes = [201] if codes.empty? # спека без 2xx — минимальный дефолт
+        # 409 считаем успехом ТОЛЬКО при идемпотентности и наличии 409 в спеке
+        has_409 = spec.create_endpoint && spec.create_endpoint.response_codes.map(&:to_i).include?(409)
+        codes << 409 if spec.idempotency_header && has_409
         codes.join(', ')
+      end
+
+      def idempotent_conflict?
+        spec.idempotency_header &&
+          spec.create_endpoint &&
+          spec.create_endpoint.response_codes.map(&:to_i).include?(409)
       end
 
       def error_action(http)
