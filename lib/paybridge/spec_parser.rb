@@ -124,6 +124,10 @@ module Paybridge
     SAFE_PATH = %r{\A[A-Za-z0-9_\-./{}~%:]+\z}
 
     def build_endpoints
+      unless @doc['paths'].nil? || @doc['paths'].is_a?(Hash)
+        raise ParseError, 'Раздел paths должен быть объектом'
+      end
+
       paths = @doc['paths'] || {}
       endpoints = []
       paths.each do |path, methods|
