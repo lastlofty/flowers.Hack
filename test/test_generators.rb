@@ -16,7 +16,7 @@ class TestGenerators < Minitest::Test
     code = Paybridge::Generators::ServiceGenerator.new(@spec, config: @config).render
     assert_includes code, 'class NovapayService < BaseService'
     assert_includes code, "BASE_URL = ENV.fetch('NOVAPAY_BASE_URL'"
-    assert_includes code, 'MIN_AMOUNT = 1000'
+    assert_includes code, 'MIN_AMOUNT = 100000'
     assert_includes code, 'STATUS_MAP = {'
     assert_includes code, "'X-API-Key' => provider.credentials.fetch('api_key')"
     assert_includes code, "OpenSSL::HMAC.hexdigest('SHA256'"

@@ -142,9 +142,9 @@ module Paybridge
             )
             guessed
           end
-        min = prop['minimum']
-        min_major = if min && minor then (min / 100) elsif min then min else nil end
-        @amount = { field: name, minor_units: minor, min_major: min_major }
+        # Храним минимум в НАТИВНЫХ единицах спеки (без деления — иначе теряются
+        # копейки: 150 центов -> 1). Сравнение генерится в правильных единицах.
+        @amount = { field: name, minor_units: minor, min_native: prop['minimum'] }
       end
 
       def record_currency(prop)

@@ -35,7 +35,9 @@
 ## Формат данных
 
 <% if spec.amount[:minor_units] -%>
-- Сумма передаётся **в минорных единицах** (`operation.amount * 100`).<%= min_amount ? " Минимум — #{spec.amount[:min_major] * 100} (#{min_amount} #{spec.currency})." : '' %>
+- Сумма передаётся **в минорных единицах** (`operation.amount * 100`).<%= min_amount ? " Минимум — #{min_amount} минорных единиц." : '' %>
+<% else -%>
+- Сумма передаётся в мажорных единицах.<%= min_amount ? " Минимум — #{min_amount} #{spec.currency}." : '' %>
 <% end -%>
 <% if spec.currency -%>
 - Валюта — `<%= spec.currency %>`.

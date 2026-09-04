@@ -42,7 +42,7 @@ class TestUniversality < Minitest::Test
 
   def test_amount_cents_and_reference
     assert @spec.amount[:minor_units]
-    assert_equal 1, @spec.amount[:min_major]         # 100 центов -> 1 USD
+    assert_equal 100, @spec.amount[:min_native]      # 100 центов (нативные единицы)
     assert_equal 'USD', @spec.currency
     assert_equal 'reference', @spec.external_id_field
   end
@@ -64,7 +64,7 @@ class TestUniversality < Minitest::Test
     code = Paybridge::Generators::ServiceGenerator.new(@spec, config: @config).render
     assert_includes code, 'class BluepayService < BaseService'
     assert_includes code, "BASE_URL = ENV.fetch('BLUEPAY_BASE_URL'"
-    assert_includes code, 'MIN_AMOUNT = 1'
+    assert_includes code, 'MIN_AMOUNT = 100'
     assert_includes code, "'X-Api-Token' => provider.credentials.fetch('api_key')"
     assert_includes code, "OpenSSL::HMAC.hexdigest('SHA512'"
     assert_includes code, 'when 201'

@@ -25,7 +25,16 @@ module Paybridge
       # --- хелперы шаблонов -------------------------------------------------
 
       def min_amount
-        spec.amount && spec.amount[:min_major]
+        spec.amount && spec.amount[:min_native]
+      end
+
+      # Выражение для проверки минимума в корректных единицах (без деления).
+      def amount_too_low_condition
+        if spec.amount && spec.amount[:minor_units]
+          '(operation.amount * 100).round < MIN_AMOUNT'
+        else
+          'operation.amount < MIN_AMOUNT'
+        end
       end
 
       # Нужен ли require 'base64' в сгенерированном сервисе

@@ -45,7 +45,7 @@ class TestSpecParser < Minitest::Test
 
   def test_amount_conversion
     assert @spec.amount[:minor_units]
-    assert_equal 1000, @spec.amount[:min_major]
+    assert_equal 100_000, @spec.amount[:min_native]
   end
 
   def test_currency

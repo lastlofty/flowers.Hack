@@ -34,7 +34,7 @@ class TestRequestMapper < Minitest::Test
   def test_amount_detected_as_minor_by_default
     result = build
     assert result.amount[:minor_units]
-    assert_equal 1000, result.amount[:min_major]
+    assert_equal 100_000, result.amount[:min_native]
     assert_includes result.ruby, '(operation.amount * 100).to_i'
   end
 

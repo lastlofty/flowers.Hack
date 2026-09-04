@@ -23,8 +23,12 @@ module Paybridge
       @report    = Report.new
     end
 
+    VALID_AMOUNT_UNIT  = %w[minor major].freeze
+    VALID_SIG_ENCODING = %w[hex base64].freeze
+
     def parse
       Safe.provider!(@provider)
+      validate_overrides!
       @doc = load_yaml
       validate_openapi!
 
@@ -99,6 +103,19 @@ module Paybridge
       end
 
       raise ParseError, 'Это не похоже на OpenAPI-спецификацию (нет ключа openapi)'
+    end
+
+    # Опечатка в overrides не должна молча менять расчёт — отклоняем явно.
+    def validate_overrides!
+      unit = @overrides['amount_unit']
+      if unit && !VALID_AMOUNT_UNIT.include?(unit.to_s)
+        raise ParseError, "overrides.amount_unit: недопустимо #{unit.inspect} (ожидается minor|major)"
+      end
+
+      enc = @overrides['signature_encoding']
+      return unless enc && !VALID_SIG_ENCODING.include?(enc.to_s)
+
+      raise ParseError, "overrides.signature_encoding: недопустимо #{enc.inspect} (ожидается hex|base64)"
     end
 
     # --- endpoints -------------------------------------------------------

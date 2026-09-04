@@ -31,7 +31,7 @@ module Provider
       base_result = super
       return base_result if base_result.failed?
 <% if min_amount -%>
-      return failure(:unprocessable_entity, 'amount_too_low') if operation.amount < MIN_AMOUNT
+      return failure(:unprocessable_entity, 'amount_too_low') if <%= amount_too_low_condition %>
 <% end -%>
       success
     end
