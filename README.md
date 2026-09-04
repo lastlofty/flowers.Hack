@@ -1,6 +1,6 @@
 # PayBridge — генератор интеграций с платёжными провайдерами
 
-Кейс Space Payments: инструмент принимает OpenAPI-спецификацию провайдера
+Кейс Space Payments: инструмент принимает OpenAPI 3.x-спецификацию провайдера
 (`provider_api.yaml`) и генерирует готовую интеграцию под контракт
 `Provider::BaseService` — Ruby-сервис, `INTEGRATION.md` и `fixtures.json`.
 
@@ -29,20 +29,24 @@ bundle install
 bundle exec rackup      # http://localhost:9292
 ```
 
-Проверка:
+Проверка и dry-run превью:
 
 ```bash
 curl -X POST http://localhost:9292/api/integrations \
   -F "spec=@examples/provider_api.yaml" \
   -F "provider=novapay"
+
+curl -X POST http://localhost:9292/api/validate \
+  -F "spec=@examples/provider_api.yaml" \
+  -F "provider=novapay"
 ```
 
-UI — на `http://localhost:9292/`.
+UI — на `http://localhost:9292/`: можно предварительно проверить спецификацию,
+сгенерировать интеграцию, увидеть результат `ruby -c`, скачать файлы и запустить
+проверку fixtures.
 
-> Сейчас `Paybridge.generate` — заглушка: возвращает распознанные endpoints и
-> файлы-плейсхолдеры. Когда ядро (`lib/paybridge/`) будет готово, внутренности
-> фасада заменяются на реальную генерацию — контракт (`Generation`,
-> `GenerationError`, сигнатура) при этом не меняется.
+`Paybridge.generate` использует реальное ядро из `lib/paybridge/`; CLI, веб-бэкенд
+и тесты работают через один фасад без дублирования логики парсинга.
 
 ## Генератор: запуск (CLI)
 
@@ -56,8 +60,9 @@ ruby exe/integrate --spec examples/provider_api.yaml --provider novapay
 ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 ```
 
-Результат — в `./output/`: `<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`,
-`<provider>_service_spec.rb` (исполняемый тест) и `base_service.rb` (каркас платформы).
+Результат — пять файлов в `./output/`: три основных артефакта
+(`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`) и два проверочных
+(`<provider>_service_spec.rb`, `base_service.rb`).
 
 Уточнения того, что нельзя достать из структуры OpenAPI (единица суммы, кодировка подписи,
 условная обязательность полей) — через опциональный overrides-файл; чего в нём нет, ядро
@@ -113,8 +118,14 @@ ruby -Ilib -Itest test/test_api.rb
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
+| POST | `/api/validate` | Dry-run: разобрать спецификацию без файлов и записи в storage |
 | POST | `/api/integrations` | Загрузить спецификацию, сгенерировать интеграцию |
 | GET | `/api/integrations/:id` | Метаданные + файлы + предупреждения |
 | GET | `/api/integrations/:id/files/:name` | Скачать один файл |
 | GET | `/api/integrations/:id/archive` | Скачать zip |
+| POST | `/api/integrations/:id/verify` | Прогнать fixtures против сгенерированного сервиса |
 | GET | `/api/health` | Проверка живости |
+
+Ответ создания содержит `valid` и `syntax_error`: бэкенд автоматически запускает
+`ruby -c` для сгенерированного сервиса. Ошибка синтаксиса остаётся видимым результатом,
+но не роняет API.

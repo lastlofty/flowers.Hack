@@ -53,6 +53,11 @@ class <%= spec.provider_class %>Test < Minitest::Test
     svc
   end
 
+  def test_check_conditions
+    result = service(200, {}).check_conditions(operation, 'create')
+    assert result.success?, "обычная операция не прошла check_conditions: #{result.message}"
+  end
+
   def sign(payload, alg, encoding)
     raw = JSON.generate(payload)
     secret = 'test_secret'
@@ -104,4 +109,16 @@ class <%= spec.provider_class %>Test < Minitest::Test
       end
     end
   end
+<% if spec.webhook && spec.webhook.signature_header -%>
+
+  def test_callback_rejects_invalid_signature
+    entry = (FIXTURES['callback'] || {}).values.find { |value| value.is_a?(Hash) && value['payload'] }
+    skip 'нет примера callback' unless entry
+
+    payload = entry['payload'].merge('_signature' => 'invalid')
+    assert_raises(Provider::UnauthorizedError) do
+      Provider::<%= spec.provider_class %>.new(provider: provider).process_callback(payload)
+    end
+  end
+<% end -%>
 end

@@ -52,6 +52,7 @@ module Paybridge
     def run
       load_service!
       cases = []
+      cases.concat(verify_conditions)
       cases.concat(verify_create)
       cases.concat(verify_status)
       cases.concat(verify_callback)
@@ -88,6 +89,11 @@ module Paybridge
 
     # --- сценарии --------------------------------------------------------
 
+    def verify_conditions
+      result = call { |svc| svc.check_conditions(operation, 'create') }
+      [kase('check_conditions.normal', result.success?, result)]
+    end
+
     def verify_create
       fx = @fixtures['create_request'] or return []
       cases = []
@@ -104,7 +110,10 @@ module Paybridge
       fx.keys.grep(/\Aresponse_(4\d\d|5\d\d)\z/).each do |key|
         code = key[/\d+/].to_i
         result = with_client([code, fx[key]]) { |svc| svc.create_request(operation) }
-        cases << kase("create_request.#{key}", result.failed?, result)
+        expected = fx["expected_#{code}"] || {}
+        ok = result.failed?
+        ok &&= eq(result.message, expected['internal_code']) if expected['internal_code']
+        cases << kase("create_request.#{key}", ok, result)
       end
       cases
     end
@@ -139,7 +148,19 @@ module Paybridge
         result = call { |svc| svc.process_callback(payload) }
         cases << kase("callback.#{name}", callback_ok?(result, val['expected_operation_status']), result)
       end
+      cases << verify_invalid_signature(fx) if fx['signature_header']
       cases
+    end
+
+    def verify_invalid_signature(fx)
+      entry = fx.values.find { |value| value.is_a?(Hash) && value['payload'] }
+      return Case.new(name: 'callback.invalid_signature', ok: true, detail: 'нет payload') unless entry
+
+      payload = entry['payload'].merge('_signature' => 'invalid')
+      call { |svc| svc.process_callback(payload) }
+      Case.new(name: 'callback.invalid_signature', ok: false, detail: 'подпись принята')
+    rescue Provider::UnauthorizedError
+      Case.new(name: 'callback.invalid_signature', ok: true, detail: 'подпись отклонена')
     end
 
     def callback_ok?(result, expected)

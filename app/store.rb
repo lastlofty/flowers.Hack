@@ -4,13 +4,15 @@ require 'fileutils'
 require 'securerandom'
 require 'time'
 require 'stringio'
+require 'open3'
+require 'rbconfig'
 
 module Paybridge
   # Хранилище интеграций: метаданные — в памяти, файлы результата — в storage/<id>/.
   # Для хакатона достаточно; при желании заменяется на SQLite без смены интерфейса.
   class Store
     Integration = Struct.new(
-      :id, :provider, :status, :warnings, :files, :endpoints, :created_at,
+      :id, :provider, :status, :warnings, :files, :endpoints, :valid, :syntax_error, :created_at,
       keyword_init: true
     )
 
@@ -37,6 +39,7 @@ module Paybridge
 
       generation.files.each { |name, body| File.write(File.join(dir, name), body) }
       copy_base_service(dir)
+      valid, syntax_error = syntax_check(File.join(dir, "#{generation.provider}_service.rb"))
 
       integration = Integration.new(
         id: id,
@@ -45,6 +48,8 @@ module Paybridge
         warnings: generation.warnings || [],
         files: Dir.children(dir).sort,
         endpoints: generation.endpoints || [],
+        valid: valid,
+        syntax_error: syntax_error,
         created_at: Time.now.utc.iso8601
       )
       @index[id] = integration
@@ -62,6 +67,10 @@ module Paybridge
       File.exist?(path) ? File.read(path) : nil
     end
 
+    def directory(integration)
+      File.join(@root, integration.id)
+    end
+
     # Zip со всеми файлами интеграции; возвращает бинарную строку.
     def archive(integration)
       require 'zip'
@@ -76,6 +85,16 @@ module Paybridge
     end
 
     private
+
+    def syntax_check(path)
+      return [false, 'Сгенерированный сервис не найден'] unless File.exist?(path)
+
+      stdout, stderr, status = Open3.capture3(RbConfig.ruby, '-c', path)
+      output = [stdout, stderr].reject(&:empty?).join("\n").strip
+      [status.success?, status.success? ? nil : output]
+    rescue StandardError => e
+      [false, "Не удалось запустить ruby -c: #{e.message}"]
+    end
 
     # Кладём рядом каркас платформы, чтобы результат был запускаемым.
     def copy_base_service(dir)

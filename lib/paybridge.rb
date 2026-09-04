@@ -22,6 +22,7 @@ require_relative 'paybridge/cli'
 module Paybridge
   ROOT           = File.expand_path('..', __dir__)
   DEFAULT_CONFIG = File.join(ROOT, 'config', 'mapping.yml')
+  PROVIDER_RE    = /\A[a-z][a-z0-9_]{1,32}\z/.freeze
   # Каркас платформы Space Payments — копируется рядом с результатом.
   BASE_SERVICE   = File.expand_path('paybridge/templates/base_service.rb', __dir__)
 
@@ -30,6 +31,12 @@ module Paybridge
 
   # Ошибка разбора/генерации — бэкенд оборачивает её в HTTP 422.
   class GenerationError < StandardError; end
+
+  def self.validate_provider!(provider)
+    return provider if provider.to_s.match?(PROVIDER_RE)
+
+    raise GenerationError, 'provider должен соответствовать ^[a-z][a-z0-9_]{1,32}$'
+  end
 
   def self.load_config(path = DEFAULT_CONFIG)
     YAML.safe_load(File.read(path))
@@ -49,9 +56,13 @@ module Paybridge
 
   # Главный фасад: спецификация -> { имя_файла => содержимое }.
   def self.generate(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+    validate_provider!(provider)
     config    = load_config(config_path)
     overrides = load_overrides(overrides_path)
     spec      = SpecParser.new(spec_path, provider, config, overrides).parse
+    unless spec.create_endpoint
+      raise GenerationError, 'В спецификации не найден POST-метод создания операции'
+    end
     source    = File.basename(spec_path)
 
     files = {
@@ -80,6 +91,7 @@ module Paybridge
   # Dry-run: только разбор спецификации, без генерации файлов.
   # Для эндпоинта POST /api/validate (превью «что распознано»).
   def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+    validate_provider!(provider)
     config    = load_config(config_path)
     overrides = load_overrides(overrides_path)
     spec      = SpecParser.new(spec_path, provider, config, overrides).parse

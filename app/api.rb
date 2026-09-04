@@ -11,7 +11,7 @@ module Paybridge
   # здесь только приём файла, вызов Paybridge.generate и отдача результата.
   class API < Sinatra::Base
     MAX_SPEC_BYTES = 1_000_000
-    PROVIDER_RE    = /\A[a-z][a-z0-9_]{1,32}\z/.freeze
+    PROVIDER_RE    = Paybridge::PROVIDER_RE
 
     configure do
       set :store, Store.new(File.expand_path('../storage', __dir__))
@@ -40,6 +40,27 @@ module Paybridge
       def store
         settings.store
       end
+
+      def read_spec_upload!
+        file     = params[:spec]
+        provider = params[:provider].to_s
+
+        error!('missing_spec', 'Файл spec обязателен', 400) unless file.is_a?(Hash) && file[:tempfile]
+        error!('invalid_provider', 'provider должен соответствовать ^[a-z][a-z0-9_]{1,32}$', 400) unless provider.match?(PROVIDER_RE)
+        error!('invalid_type', 'Ожидается файл .yaml или .yml', 400) unless file[:filename].to_s.match?(/\.ya?ml\z/i)
+
+        content = file[:tempfile].read
+        error!('too_large', 'Файл больше 1 МБ', 413) if content.bytesize > MAX_SPEC_BYTES
+
+        [content, provider]
+      end
+
+      def with_temp_spec(content)
+        spec_path = store.tmp_spec(content)
+        yield spec_path
+      ensure
+        File.delete(spec_path) if spec_path && File.exist?(spec_path)
+      end
     end
 
     # --- UI --------------------------------------------------------------
@@ -56,25 +77,26 @@ module Paybridge
       json_response(status: 'ok')
     end
 
+    # --- dry-run: разобрать спецификацию без генерации и сохранения ------
+    post '/api/validate' do
+      content, provider = read_spec_upload!
+      model = with_temp_spec(content) do |spec_path|
+        Paybridge.parse_only(spec_path: spec_path, provider: provider)
+      end
+      json_response(model)
+    rescue Paybridge::GenerationError => e
+      error!('validation_failed', e.message, 422)
+    end
+
     # --- создание интеграции --------------------------------------------
     post '/api/integrations' do
-      file     = params[:spec]
-      provider = params[:provider].to_s
-
-      error!('missing_spec', 'Файл spec обязателен', 400) unless file.is_a?(Hash) && file[:tempfile]
-      error!('invalid_provider', 'provider должен соответствовать ^[a-z][a-z0-9_]{1,32}$', 400) unless provider.match?(PROVIDER_RE)
-      error!('invalid_type', 'Ожидается файл .yaml или .yml', 400) unless file[:filename].to_s.match?(/\.ya?ml\z/i)
-
-      content = file[:tempfile].read
-      error!('too_large', 'Файл больше 1 МБ', 413) if content.bytesize > MAX_SPEC_BYTES
-
-      spec_path = store.tmp_spec(content)
+      content, provider = read_spec_upload!
       begin
-        generation = Paybridge.generate(spec_path: spec_path, provider: provider)
+        generation = with_temp_spec(content) do |spec_path|
+          Paybridge.generate(spec_path: spec_path, provider: provider)
+        end
       rescue Paybridge::GenerationError => e
         error!('generation_failed', e.message, 422)
-      ensure
-        File.delete(spec_path) if spec_path && File.exist?(spec_path)
       end
 
       integration = store.save(generation)
@@ -104,6 +126,15 @@ module Paybridge
       content_type 'application/zip'
       headers['Content-Disposition'] = %(attachment; filename="integration_#{integration.provider}.zip")
       store.archive(integration)
+    end
+
+    # --- прогон fixtures против сгенерированного сервиса ----------------
+    post '/api/integrations/:id/verify' do
+      integration = store.find(params[:id]) || error!('not_found', 'Интеграция не найдена', 404)
+      report = Paybridge::Verifier.new(store.directory(integration)).run
+      json_response(Serializers.verification(report))
+    rescue Paybridge::Verifier::LoadError => e
+      error!('verification_failed', e.message, 422)
     end
 
     # --- на всё непойманное ---------------------------------------------

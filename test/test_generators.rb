@@ -2,6 +2,7 @@
 
 require 'minitest/autorun'
 require 'json'
+require 'tempfile'
 require_relative '../lib/paybridge'
 
 class TestGenerators < Minitest::Test
@@ -36,5 +37,32 @@ class TestGenerators < Minitest::Test
     assert_equal 'novapay', data['provider']
     assert data['create_request']['request']
     assert data['callback']
+  end
+
+  def test_facade_rejects_invalid_provider_name
+    error = assert_raises(Paybridge::GenerationError) do
+      Paybridge.generate(spec_path: File.expand_path('../examples/provider_api.yaml', __dir__), provider: 'Bad Name!')
+    end
+    assert_match(/provider/, error.message)
+  end
+
+  def test_generation_without_create_endpoint_has_clear_error
+    file = Tempfile.new(['no_create', '.yaml'])
+    file.write(<<~YAML)
+      openapi: 3.0.3
+      info: { title: Read Only, version: 1.0.0 }
+      paths:
+        /balance:
+          get:
+            responses: { '200': { description: ok } }
+    YAML
+    file.rewind
+
+    error = assert_raises(Paybridge::GenerationError) do
+      Paybridge.generate(spec_path: file.path, provider: 'readonly')
+    end
+    assert_match(/POST-метод создания/, error.message)
+  ensure
+    file.close!
   end
 end

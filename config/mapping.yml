@@ -26,7 +26,7 @@ status_map:
   rejected: rejected
   cancelled: rejected
   canceled: rejected
-  refunded: refunded
+  refunded: rejected
 
 unknown_status_default: in_progress
 

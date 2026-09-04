@@ -44,4 +44,13 @@ class TestVerifier < Minitest::Test
     report = verify('provider_api.yaml', 'novapay')
     assert_equal report.cases.size, report.passed + report.failed
   end
+
+  def test_checks_conditions_and_invalid_signature
+    report = verify('provider_api.yaml', 'novapay')
+    names = report.cases.map(&:name)
+
+    assert_includes names, 'check_conditions.normal'
+    assert_includes names, 'callback.invalid_signature'
+    assert report.cases.find { |test_case| test_case.name == 'callback.invalid_signature' }.ok
+  end
 end

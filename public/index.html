@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>PayBridge — генератор интеграций</title>
   <style>
     :root { color-scheme: light dark; }
@@ -13,10 +14,13 @@
     input[type=text] { padding: 8px; border: 1px solid #8886; border-radius: 6px; }
     button { padding: 10px 16px; border: 0; border-radius: 6px; background: #2f6fed; color: #fff; font-weight: 600; cursor: pointer; }
     button:disabled { opacity: .5; cursor: default; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .secondary { background: #64748b; }
     pre { background: #8881; padding: 12px; border-radius: 8px; overflow-x: auto; }
     .files a { display: inline-block; margin: 4px 8px 4px 0; }
     .warn { color: #c67; }
     .err { color: #d33; font-weight: 600; }
+    .ok { color: #17803d; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -32,7 +36,10 @@
       <label>Провайдер</label><br>
       <input type="text" name="provider" id="provider" value="novapay" pattern="[a-z][a-z0-9_]{1,32}" required>
     </div>
-    <button type="submit" id="go">Сгенерировать</button>
+    <div class="actions">
+      <button type="button" id="validate" class="secondary">Проверить спецификацию</button>
+      <button type="submit" id="go">Сгенерировать</button>
+    </div>
   </form>
 
   <div id="out"></div>
@@ -41,40 +48,99 @@
     const f = document.getElementById('f');
     const out = document.getElementById('out');
     const go = document.getElementById('go');
+    const validate = document.getElementById('validate');
+
+    function formData() {
+      const data = new FormData();
+      data.append('spec', document.getElementById('spec').files[0]);
+      data.append('provider', document.getElementById('provider').value);
+      return data;
+    }
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[char]);
+    }
+
+    async function request(path, data) {
+      const res = await fetch(path, { method: 'POST', body: data });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error?.message || `HTTP ${res.status}`);
+      return body;
+    }
+
+    validate.addEventListener('click', async () => {
+      if (!f.reportValidity()) return;
+      out.textContent = 'Разбор спецификации…';
+      validate.disabled = true;
+      go.disabled = true;
+      try {
+        renderModel(await request('/api/validate', formData()));
+      } catch (err) {
+        out.innerHTML = `<p class="err">Ошибка: ${esc(err.message)}</p>`;
+      } finally {
+        validate.disabled = false;
+        go.disabled = false;
+      }
+    });
 
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       out.innerHTML = 'Генерация…';
       go.disabled = true;
       try {
-        const data = new FormData();
-        data.append('spec', document.getElementById('spec').files[0]);
-        data.append('provider', document.getElementById('provider').value);
-        const res = await fetch('/api/integrations', { method: 'POST', body: data });
-        const body = await res.json();
-        if (!res.ok) {
-          out.innerHTML = '<p class="err">Ошибка: ' + (body.error?.message || res.status) + '</p>';
-          return;
-        }
-        render(body);
+        render(await request('/api/integrations', formData()));
       } catch (err) {
-        out.innerHTML = '<p class="err">Сеть недоступна: ' + err + '</p>';
+        out.innerHTML = `<p class="err">Ошибка: ${esc(err.message)}</p>`;
       } finally {
         go.disabled = false;
       }
     });
 
     function render(b) {
-      const eps = b.endpoints.map(e => `${e.method} ${e.path} (${e.role})`).join('\n');
+      const eps = b.endpoints.map(e => `${esc(e.method)} ${esc(e.path)} (${esc(e.role)})`).join('\n');
       const files = b.files.map(n =>
-        `<a href="/api/integrations/${b.id}/files/${n}" target="_blank">${n}</a>`).join('');
+        `<a href="/api/integrations/${encodeURIComponent(b.id)}/files/${encodeURIComponent(n)}" target="_blank">${esc(n)}</a>`).join('');
       const warns = (b.warnings || []).length
-        ? '<p class="warn">Предупреждения:<br>' + b.warnings.join('<br>') + '</p>' : '';
+        ? '<p class="warn">Предупреждения:<br>' + b.warnings.map(esc).join('<br>') + '</p>' : '';
+      const syntax = b.valid
+        ? '<p class="ok">Ruby-синтаксис: OK</p>'
+        : `<p class="err">Ruby-синтаксис: ${esc(b.syntax_error || 'ошибка')}</p>`;
       out.innerHTML =
-        `<h3>Интеграция ${b.id} · ${b.provider}</h3>` +
+        `<h3>Интеграция ${esc(b.id)} · ${esc(b.provider)}</h3>` + syntax +
         `<pre>${eps}</pre>` + warns +
         `<div class="files">${files} · ` +
-        `<a href="/api/integrations/${b.id}/archive">скачать zip</a></div>`;
+        `<a href="/api/integrations/${encodeURIComponent(b.id)}/archive">скачать zip</a></div>` +
+        `<p><button type="button" id="verify">Проверить интеграцию</button></p>` +
+        '<div id="verification"></div>';
+      document.getElementById('verify').addEventListener('click', () => verifyIntegration(b.id));
+    }
+
+    function renderModel(model) {
+      const endpoints = model.endpoints.map(e => `${e.method} ${e.path} (${e.role})`).join('\n');
+      const statusMap = Object.entries(model.status_map || {}).map(([a, b]) => `${a} → ${b}`).join('\n');
+      const errorMap = Object.entries(model.error_map || {}).map(([a, b]) => `${a} → ${b}`).join('\n');
+      const warnings = (model.warnings || []).length
+        ? `<p class="warn">Предупреждения:<br>${model.warnings.map(esc).join('<br>')}</p>` : '';
+      out.innerHTML =
+        `<h3>Распознано: ${esc(model.title)} v${esc(model.version)}</h3>` +
+        `<p>Авторизация: ${esc(model.auth?.type || 'не найдена')} · BASE_URL: ${esc(model.base_url || 'не указан')}</p>` +
+        `<h4>Методы</h4><pre>${esc(endpoints)}</pre>` +
+        `<h4>Статусы</h4><pre>${esc(statusMap)}</pre>` +
+        `<h4>Ошибки</h4><pre>${esc(errorMap)}</pre>` + warnings;
+    }
+
+    async function verifyIntegration(id) {
+      const target = document.getElementById('verification');
+      target.textContent = 'Проверка fixtures…';
+      try {
+        const report = await request(`/api/integrations/${encodeURIComponent(id)}/verify`);
+        const cases = report.cases.map(c => `${c.ok ? 'OK' : 'FAIL'}  ${c.name}`).join('\n');
+        target.innerHTML = `<p class="${report.failed ? 'err' : 'ok'}">${report.passed} passed, ${report.failed} failed</p><pre>${esc(cases)}</pre>`;
+      } catch (err) {
+        target.innerHTML = `<p class="err">Ошибка проверки: ${esc(err.message)}</p>`;
+      }
     }
   </script>
 </body>

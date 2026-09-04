@@ -13,6 +13,7 @@ gem 'rackup',  '~> 2.1'      # запуск rack-приложения
 gem 'rubyzip', '~> 3.0'      # zip-архив с результатом
 
 group :test do
+  gem 'rake',      '~> 13.2'
   gem 'minitest',  '~> 5.20' # входит в stdlib, зафиксирована версия для CI
   gem 'rack-test', '~> 2.1'
 end

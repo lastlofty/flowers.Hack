@@ -84,9 +84,18 @@ module Paybridge
     end
 
     def validate_openapi!
-      return if @doc.is_a?(Hash) && (@doc['openapi'] || @doc['swagger'])
+      unless @doc.is_a?(Hash)
+        raise ParseError, 'Это не похоже на OpenAPI-спецификацию'
+      end
 
-      raise ParseError, 'Это не похоже на OpenAPI-спецификацию (нет ключа openapi/swagger)'
+      version = @doc['openapi'].to_s
+      return if version.start_with?('3.')
+
+      if @doc['swagger']
+        raise ParseError, 'Swagger 2.0 пока не поддерживается; требуется OpenAPI 3.x'
+      end
+
+      raise ParseError, 'Это не похоже на OpenAPI-спецификацию (нет ключа openapi)'
     end
 
     # --- endpoints -------------------------------------------------------

@@ -127,7 +127,9 @@ module Paybridge
             'provider_operation_id' => example['id'],
             'operation_status' => spec.status_map[example['status']] }
         elsif example.is_a?(Hash) && example['error']
-          { 'status' => 'failed', 'provider_code' => example.dig('error', 'code') }
+          { 'status' => 'failed',
+            'provider_code' => example.dig('error', 'code'),
+            'internal_code' => spec.error_map[code.to_i] }
         else
           {}
         end

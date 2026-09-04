@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'minitest/autorun'
+require 'tempfile'
 require_relative '../lib/paybridge'
 
 class TestSpecParser < Minitest::Test
@@ -64,5 +65,18 @@ class TestSpecParser < Minitest::Test
     assert_equal 'payout_id', @spec.webhook.id_field
     assert_equal :approve, @spec.webhook.event_actions['payout.completed']
     assert_equal :reject, @spec.webhook.event_actions['payout.failed']
+  end
+
+  def test_swagger_2_is_rejected_with_clear_message
+    file = Tempfile.new(['swagger', '.yaml'])
+    file.write("swagger: '2.0'\ninfo: { title: Old API, version: 1.0.0 }\npaths: {}\n")
+    file.rewind
+
+    error = assert_raises(Paybridge::SpecParser::ParseError) do
+      Paybridge::SpecParser.new(file.path, 'oldpay', Paybridge.load_config).parse
+    end
+    assert_match(/Swagger 2\.0/, error.message)
+  ensure
+    file.close!
   end
 end
