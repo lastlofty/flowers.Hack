@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../safe'
+
 module Paybridge
   module Mappers
     # Строит тело запроса создания операции: из JSON-схемы запроса генерирует
@@ -52,7 +54,7 @@ module Paybridge
           next if skip_field?(name, prop, group)
 
           value = value_expr(name, prop, depth, group)
-          lines << "#{indent(depth)}#{name}: #{value}"
+          lines << "#{indent(depth)}#{Safe.hash_key(name)} #{value}"
         end
 
         body = lines.join(",\n")
@@ -73,11 +75,15 @@ module Paybridge
           @external_id_field = name
           'operation.id.to_s'
         elsif name == 'type' && single_enum?(prop)
-          quote(prop['enum'].first)
+          Safe.rb(prop['enum'].first)
+        elsif @current_group
+          "requisite.dig(#{Safe.rb(@current_group)}, #{Safe.rb(name)})"
         else
-          # реквизиты вложенного объекта берём из operation.payout_requisite
-          @current_group ? "requisite.dig(#{quote(@current_group)}, #{quote(name)})"
-                         : "operation.#{name}"
+          # Поле верхнего уровня без известного правила сопоставления НЕ превращаем
+          # в operation.<имя> (вызов несуществующего метода). Явно nil + предупреждение.
+          @report.warn("Поле запроса '#{name}' не сопоставлено — отправляется nil. " \
+                       'Задайте правило (overrides) или расширьте маппер.')
+          'nil'
         end
       end
 
@@ -90,13 +96,13 @@ module Paybridge
           next if skip_field?(name, prop, group)
 
           value = if name == 'type' && single_enum_or_example?(prop)
-                    quote(group)
+                    Safe.rb(group)
                   elsif prop['type'] == 'object'
                     emit_nested(prop, depth + 1, object_group(prop))
                   else
-                    "requisite.dig(#{quote(group)}, #{quote(name)})"
+                    "requisite.dig(#{Safe.rb(group)}, #{Safe.rb(name)})"
                   end
-          lines << "#{indent(depth)}#{name}: #{value}"
+          lines << "#{indent(depth)}#{Safe.hash_key(name)} #{value}"
         end
         @current_group = nil
         suffix = optional_present?(props, required, group) ? '.compact' : ''

@@ -10,13 +10,13 @@ require 'cgi'
 <% end -%>
 
 # ────────────────────────────────────────────────────────────────────────
-# СГЕНЕРИРОВАНО PayBridge из <%= File.basename(spec_source) %>
-# Провайдер: <%= spec.provider_name %> (<%= spec.title %> v<%= spec.version %>)
+# СГЕНЕРИРОВАНО PayBridge из <%= Safe.comment(File.basename(spec_source)) %>
+# Провайдер: <%= spec.provider_name %> (<%= Safe.comment(spec.title) %> v<%= Safe.comment(spec.version) %>)
 # Не редактировать вручную — изменения перезапишутся при регенерации.
 # ────────────────────────────────────────────────────────────────────────
 module Provider
   class <%= spec.provider_class %> < BaseService
-    BASE_URL = ENV.fetch('<%= spec.base_url_env %>', '<%= spec.base_url %>')
+    BASE_URL = ENV.fetch(<%= Safe.rb(spec.base_url_env) %>, <%= Safe.rb(spec.base_url) %>)
 <% if min_amount -%>
     MIN_AMOUNT = <%= min_amount %>
 <% end -%>
@@ -71,12 +71,12 @@ module Provider
 
       case payload['event']
 <% unless approve_events.empty? -%>
-      when <%= approve_events.map { |e| "'#{e}'" }.join(', ') %>
-        approve_operation(payload['<%= spec.webhook.id_field %>'], map_status(payload['status']))
+      when <%= approve_events.map { |e| Safe.rb(e) }.join(', ') %>
+        approve_operation(payload[<%= Safe.rb(spec.webhook.id_field) %>], map_status(payload['status']))
 <% end -%>
 <% unless reject_events.empty? -%>
-      when <%= reject_events.map { |e| "'#{e}'" }.join(', ') %>
-        reject_operation(payload['<%= spec.webhook.id_field %>'], payload.dig('error', 'code'))
+      when <%= reject_events.map { |e| Safe.rb(e) }.join(', ') %>
+        reject_operation(payload[<%= Safe.rb(spec.webhook.id_field) %>], payload.dig('error', 'code'))
 <% end -%>
       else
         failure(:unprocessable_entity, 'unknown_event')
@@ -122,7 +122,7 @@ module Provider
 <% if auth_in_query? -%>
       {} # ключ передаётся в query-параметре
 <% else -%>
-      { '<%= spec.auth.header_name %>' => <%= spec.auth.header_value_ruby %> }
+      { <%= Safe.rb(spec.auth.header_name) %> => <%= spec.auth.header_value_ruby %> }
 <% end -%>
     end
 <% end -%>
@@ -135,14 +135,14 @@ module Provider
 <% if spec.webhook && spec.webhook.signature_header -%>
 
     def verify_signature!(payload)
-      secret   = provider.credentials.fetch('<%= spec.webhook.callback_secret_field %>')
+      secret   = provider.credentials.fetch(<%= Safe.rb(spec.webhook.callback_secret_field) %>)
       # подпись считается по телу БЕЗ служебного поля _signature
       body     = payload.is_a?(Hash) ? payload.reject { |k, _| k == '_signature' } : payload
       raw_body = body.is_a?(String) ? body : JSON.generate(body)
 <% if spec.webhook.signature_encoding == 'base64' -%>
-      expected = Base64.strict_encode64(OpenSSL::HMAC.digest('<%= spec.webhook.signature_alg %>', secret, raw_body))
+      expected = Base64.strict_encode64(OpenSSL::HMAC.digest(<%= Safe.rb(spec.webhook.signature_alg) %>, secret, raw_body))
 <% else -%>
-      expected = OpenSSL::HMAC.hexdigest('<%= spec.webhook.signature_alg %>', secret, raw_body)
+      expected = OpenSSL::HMAC.hexdigest(<%= Safe.rb(spec.webhook.signature_alg) %>, secret, raw_body)
 <% end -%>
       received = payload.is_a?(Hash) ? payload['_signature'] : nil
 

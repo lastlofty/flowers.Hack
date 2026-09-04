@@ -64,7 +64,7 @@ class TestAuthVariants < Minitest::Test
   def test_api_key_in_query
     gen = generate('Auth: { type: apiKey, in: query, name: api_key }', 'querypay')
     code = gen.files['querypay_service.rb']
-    assert_includes code, '/pay?api_key=#{CGI.escape(provider.credentials.fetch(\'api_key\'))}'
+    assert_includes code, '/pay?#{CGI.escape(\'api_key\')}=#{CGI.escape(provider.credentials.fetch(\'api_key\'))}'
     assert_includes code, "require 'cgi'"
     assert_includes code, '{} # ключ передаётся в query'
     assert syntax_ok?(code), 'сервис с query-auth не компилируется'

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'erb'
+require_relative '../safe'
 
 module Paybridge
   module Generators
@@ -41,27 +42,28 @@ module Paybridge
       end
 
       # Фрагмент для добавления ключа в URL при query-авторизации (иначе '').
+      # Имя параметра и значение экранируются CGI.escape в рантайме.
       def auth_query
         return '' unless auth_in_query?
 
-        "?#{spec.auth.header_name}=\#{CGI.escape(#{spec.auth.header_value_ruby})}"
+        "?\#{CGI.escape(#{Safe.rb(spec.auth.header_name)})}=\#{CGI.escape(#{spec.auth.header_value_ruby})}"
       end
 
       def render_status_map
-        render_const('STATUS_MAP', spec.status_map) { |k, v| "'#{k}' => '#{v}'" }
+        render_const('STATUS_MAP', spec.status_map) { |k, v| "#{Safe.rb(k)} => #{Safe.rb(v)}" }
       end
 
       def render_error_map
-        render_const('ERROR_MAP', spec.error_map) { |k, v| "#{k} => '#{v}'" }
+        render_const('ERROR_MAP', spec.error_map) { |k, v| "#{k.to_i} => #{Safe.rb(v)}" }
       end
 
       def render_symbol_map
-        render_const('HTTP_STATUS_SYMBOL', spec.http_symbol) { |k, v| "#{k} => :#{v}" }
+        render_const('HTTP_STATUS_SYMBOL', spec.http_symbol) { |k, v| "#{k.to_i} => #{Safe.sym(v)}" }
       end
 
       def create_headers
         if spec.idempotency_header
-          "auth_headers.merge('#{spec.idempotency_header}' => idempotency_key(operation))"
+          "auth_headers.merge(#{Safe.rb(spec.idempotency_header)} => idempotency_key(operation))"
         else
           'auth_headers'
         end

@@ -4,6 +4,7 @@ require 'yaml'
 require 'json'
 
 require_relative 'paybridge/report'
+require_relative 'paybridge/safe'
 require_relative 'paybridge/ir'
 require_relative 'paybridge/spec_parser'
 require_relative 'paybridge/generators/service_generator'

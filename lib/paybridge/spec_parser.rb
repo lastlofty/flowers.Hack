@@ -3,6 +3,7 @@
 require 'yaml'
 require_relative 'ir'
 require_relative 'report'
+require_relative 'safe'
 require_relative 'mappers/status_mapper'
 require_relative 'mappers/error_mapper'
 require_relative 'mappers/request_mapper'
@@ -23,6 +24,7 @@ module Paybridge
     end
 
     def parse
+      Safe.provider!(@provider)
       @doc = load_yaml
       validate_openapi!
 
@@ -47,7 +49,7 @@ module Paybridge
 
       IR::Spec.new(
         provider_name: @provider,
-        provider_class: camelize(@provider) + 'Service',
+        provider_class: Safe.class_name(@provider),
         title: dig(@doc, 'info', 'title'),
         version: dig(@doc, 'info', 'version'),
         base_url: base_url,
@@ -100,11 +102,17 @@ module Paybridge
 
     # --- endpoints -------------------------------------------------------
 
+    SAFE_PATH = %r{\A[A-Za-z0-9_\-./{}~%:]+\z}
+
     def build_endpoints
       paths = @doc['paths'] || {}
       endpoints = []
       paths.each do |path, methods|
         next unless methods.is_a?(Hash)
+
+        unless path.to_s.match?(SAFE_PATH)
+          raise ParseError, "Недопустимый путь в спецификации: #{path.inspect}"
+        end
 
         methods.each do |http_method, op|
           next unless %w[get post put patch delete].include?(http_method)
