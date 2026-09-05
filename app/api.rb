@@ -4,6 +4,7 @@ require 'sinatra/base'
 require 'json'
 require_relative 'store'
 require_relative 'serializers'
+require_relative 'verification_runner'
 require_relative '../lib/paybridge'
 
 module Paybridge
@@ -15,6 +16,7 @@ module Paybridge
 
     configure do
       set :store, Store.new(File.expand_path('../storage', __dir__))
+      set :verification_runner, VerificationRunner.new
       set :show_exceptions, false
       set :raise_errors, false
       enable :static
@@ -49,7 +51,9 @@ module Paybridge
         error!('invalid_provider', 'provider должен соответствовать ^[a-z][a-z0-9_]{1,32}$', 400) unless provider.match?(PROVIDER_RE)
         error!('invalid_type', 'Ожидается файл .yaml или .yml', 400) unless file[:filename].to_s.match?(/\.ya?ml\z/i)
 
-        content = file[:tempfile].read
+        # Read at most one byte over the limit. This rejects oversized uploads
+        # without copying an arbitrarily large request body into Ruby memory.
+        content = file[:tempfile].read(MAX_SPEC_BYTES + 1)
         error!('too_large', 'Файл больше 1 МБ', 413) if content.bytesize > MAX_SPEC_BYTES
 
         [content, provider]
@@ -74,7 +78,7 @@ module Paybridge
 
     # --- health ----------------------------------------------------------
     get '/api/health' do
-      json_response(status: 'ok')
+      json_response({ status: 'ok' }.merge(settings.verification_runner.capability))
     end
 
     # --- dry-run: разобрать спецификацию без генерации и сохранения ------
@@ -131,9 +135,14 @@ module Paybridge
     # --- прогон fixtures против сгенерированного сервиса ----------------
     post '/api/integrations/:id/verify' do
       integration = store.find(params[:id]) || error!('not_found', 'Интеграция не найдена', 404)
-      report = Paybridge::Verifier.new(store.directory(integration)).run
-      json_response(Serializers.verification(report))
-    rescue Paybridge::Verifier::LoadError => e
+      json_response(settings.verification_runner.run(store.directory(integration), integration.provider))
+    rescue VerificationRunner::Unavailable => e
+      error!('verification_unavailable', e.message, 503)
+    rescue VerificationRunner::Busy => e
+      error!('verification_busy', e.message, 429)
+    rescue VerificationRunner::Deadline => e
+      error!('verification_timeout', e.message, 504)
+    rescue VerificationRunner::Failure => e
       error!('verification_failed', e.message, 422)
     end
 

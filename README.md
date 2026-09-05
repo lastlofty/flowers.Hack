@@ -1,5 +1,7 @@
 # PayBridge — генератор интеграций с платёжными провайдерами
 
+> **Веб-версия готова:** загрузка реальной OpenAPI YAML, разбор, генерация, просмотр и скачивание файлов работают через Sinatra API без мок-данных. Запуск: `bundle install && bundle exec rackup --host 127.0.0.1 --port 9292`.
+
 [![CI](https://github.com/lastlofty/flowers.Hack/actions/workflows/ci.yml/badge.svg)](https://github.com/lastlofty/flowers.Hack/actions/workflows/ci.yml)
 
 Кейс Space Payments: инструмент принимает OpenAPI 3.x-спецификацию провайдера

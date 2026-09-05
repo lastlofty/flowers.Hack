@@ -32,3 +32,11 @@ jobs:
       - name: RuboCop (совещательно)
         continue-on-error: true
         run: bundle exec rubocop
+
+      - name: Build isolated verifier
+        run: docker build -f verification/Dockerfile -t paybridge-verifier:local .
+
+      - name: Verify isolation and generated integrations
+        env:
+          PAYBRIDGE_DOCKER_TESTS: '1'
+        run: bundle exec ruby -Itest test/test_verification_runner.rb

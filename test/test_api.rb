@@ -21,7 +21,17 @@ class APITest < Minitest::Test
   def test_health
     get '/api/health'
     assert_equal 200, last_response.status
-    assert_equal 'ok', JSON.parse(last_response.body)['status']
+    body = JSON.parse(last_response.body)
+    assert_equal 'ok', body['status']
+    assert_includes [true, false], body['verification_available']
+    refute_empty body['verification_reason'] unless body['verification_available']
+  end
+
+  def test_ui_assets_are_served
+    ['/', '/app.js', '/app.css', '/ui-core.mjs', '/favicon.svg'].each do |path|
+      get path
+      assert_equal 200, last_response.status, "expected #{path} to be served"
+    end
   end
 
   def test_generate_happy_path
@@ -96,17 +106,23 @@ class APITest < Minitest::Test
     assert_equal 'application/zip', last_response.content_type
   end
 
-  def test_generate_then_verify
+  def test_verify_runs_only_with_an_isolated_runner
+    get '/api/health'
+    available = JSON.parse(last_response.body)['verification_available']
     post '/api/integrations', spec: spec_upload, provider: 'novapay'
     id = JSON.parse(last_response.body)['id']
 
     post "/api/integrations/#{id}/verify"
 
-    assert_equal 200, last_response.status
     body = JSON.parse(last_response.body)
-    assert_operator body['passed'], :>, 0
-    assert_equal 0, body['failed']
-    refute_empty body['cases']
+    if available
+      assert_equal 200, last_response.status
+      assert_operator body['passed'], :>, 0
+      assert_equal 0, body['failed']
+    else
+      assert_equal 503, last_response.status
+      assert_equal 'verification_unavailable', body.dig('error', 'code')
+    end
   end
 
   def test_invalid_provider

@@ -1,147 +1,16 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
-  <title>PayBridge — генератор интеграций</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
-    h1 { font-size: 1.4rem; }
-    form { display: grid; gap: 12px; padding: 16px; border: 1px solid #8883; border-radius: 10px; }
-    label { font-weight: 600; }
-    input[type=text] { padding: 8px; border: 1px solid #8886; border-radius: 6px; }
-    button { padding: 10px 16px; border: 0; border-radius: 6px; background: #2f6fed; color: #fff; font-weight: 600; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: default; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .secondary { background: #64748b; }
-    pre { background: #8881; padding: 12px; border-radius: 8px; overflow-x: auto; }
-    .files a { display: inline-block; margin: 4px 8px 4px 0; }
-    .warn { color: #c67; }
-    .err { color: #d33; font-weight: 600; }
-    .ok { color: #17803d; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <h1>PayBridge</h1>
-  <p>Загрузите <code>provider_api.yaml</code> — получите сгенерированную интеграцию.</p>
-
-  <form id="f">
-    <div>
-      <label>Спецификация (YAML)</label><br>
-      <input type="file" name="spec" id="spec" accept=".yaml,.yml" required>
-    </div>
-    <div>
-      <label>Провайдер</label><br>
-      <input type="text" name="provider" id="provider" value="novapay" pattern="[a-z][a-z0-9_]{1,32}" required>
-    </div>
-    <div class="actions">
-      <button type="button" id="validate" class="secondary">Проверить спецификацию</button>
-      <button type="submit" id="go">Сгенерировать</button>
-    </div>
-  </form>
-
-  <div id="out"></div>
-
-  <script>
-    const f = document.getElementById('f');
-    const out = document.getElementById('out');
-    const go = document.getElementById('go');
-    const validate = document.getElementById('validate');
-
-    function formData() {
-      const data = new FormData();
-      data.append('spec', document.getElementById('spec').files[0]);
-      data.append('provider', document.getElementById('provider').value);
-      return data;
-    }
-
-    function esc(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-      })[char]);
-    }
-
-    async function request(path, data) {
-      const res = await fetch(path, { method: 'POST', body: data });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error?.message || `HTTP ${res.status}`);
-      return body;
-    }
-
-    validate.addEventListener('click', async () => {
-      if (!f.reportValidity()) return;
-      out.textContent = 'Разбор спецификации…';
-      validate.disabled = true;
-      go.disabled = true;
-      try {
-        renderModel(await request('/api/validate', formData()));
-      } catch (err) {
-        out.innerHTML = `<p class="err">Ошибка: ${esc(err.message)}</p>`;
-      } finally {
-        validate.disabled = false;
-        go.disabled = false;
-      }
-    });
-
-    f.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      out.innerHTML = 'Генерация…';
-      go.disabled = true;
-      try {
-        render(await request('/api/integrations', formData()));
-      } catch (err) {
-        out.innerHTML = `<p class="err">Ошибка: ${esc(err.message)}</p>`;
-      } finally {
-        go.disabled = false;
-      }
-    });
-
-    function render(b) {
-      const eps = b.endpoints.map(e => `${esc(e.method)} ${esc(e.path)} (${esc(e.role)})`).join('\n');
-      const files = b.files.map(n =>
-        `<a href="/api/integrations/${encodeURIComponent(b.id)}/files/${encodeURIComponent(n)}" target="_blank">${esc(n)}</a>`).join('');
-      const warns = (b.warnings || []).length
-        ? '<p class="warn">Предупреждения:<br>' + b.warnings.map(esc).join('<br>') + '</p>' : '';
-      const syntax = b.valid
-        ? '<p class="ok">Ruby-синтаксис: OK</p>'
-        : `<p class="err">Ruby-синтаксис: ${esc(b.syntax_error || 'ошибка')}</p>`;
-      out.innerHTML =
-        `<h3>Интеграция ${esc(b.id)} · ${esc(b.provider)}</h3>` + syntax +
-        `<pre>${eps}</pre>` + warns +
-        `<div class="files">${files} · ` +
-        `<a href="/api/integrations/${encodeURIComponent(b.id)}/archive">скачать zip</a></div>` +
-        `<p><button type="button" id="verify">Проверить интеграцию</button></p>` +
-        '<div id="verification"></div>';
-      document.getElementById('verify').addEventListener('click', () => verifyIntegration(b.id));
-    }
-
-    function renderModel(model) {
-      const endpoints = model.endpoints.map(e => `${e.method} ${e.path} (${e.role})`).join('\n');
-      const statusMap = Object.entries(model.status_map || {}).map(([a, b]) => `${a} → ${b}`).join('\n');
-      const errorMap = Object.entries(model.error_map || {}).map(([a, b]) => `${a} → ${b}`).join('\n');
-      const warnings = (model.warnings || []).length
-        ? `<p class="warn">Предупреждения:<br>${model.warnings.map(esc).join('<br>')}</p>` : '';
-      out.innerHTML =
-        `<h3>Распознано: ${esc(model.title)} v${esc(model.version)}</h3>` +
-        `<p>Авторизация: ${esc(model.auth?.type || 'не найдена')} · BASE_URL: ${esc(model.base_url || 'не указан')}</p>` +
-        `<h4>Методы</h4><pre>${esc(endpoints)}</pre>` +
-        `<h4>Статусы</h4><pre>${esc(statusMap)}</pre>` +
-        `<h4>Ошибки</h4><pre>${esc(errorMap)}</pre>` + warnings;
-    }
-
-    async function verifyIntegration(id) {
-      const target = document.getElementById('verification');
-      target.textContent = 'Проверка fixtures…';
-      try {
-        const report = await request(`/api/integrations/${encodeURIComponent(id)}/verify`);
-        const cases = report.cases.map(c => `${c.ok ? 'OK' : 'FAIL'}  ${c.name}`).join('\n');
-        target.innerHTML = `<p class="${report.failed ? 'err' : 'ok'}">${report.passed} passed, ${report.failed} failed</p><pre>${esc(cases)}</pre>`;
-      } catch (err) {
-        target.innerHTML = `<p class="err">Ошибка проверки: ${esc(err.message)}</p>`;
-      }
-    }
-  </script>
-</body>
-</html>
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="PayBridge — генерация Ruby-интеграций из OpenAPI."><meta name="color-scheme" content="dark"><title>PayBridge — интеграции</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><script src="/app.js" type="module"></script></head>
+<body><div class="app-shell">
+<aside class="sidebar"><a href="/" class="brand"><span class="brand-mark">P</span>PayBridge</a><div class="workspace-label">РАБОЧАЯ ОБЛАСТЬ</div><nav aria-label="Навигация"><span class="nav-current">⌘ &nbsp; Интеграция</span></nav><div class="sidebar-bottom">● OpenAPI → Ruby<p>От спецификации<br>к подключению</p></div></aside>
+<main><header class="topbar"><div class="breadcrumb">Рабочая область <span>/</span> <strong id="breadcrumb-provider">Новая интеграция</strong></div><button type="button" class="connection" id="health-button" title="Обновить статус сервера"><span class="connection-dot" id="health-dot"></span><span id="health-text">Подключение…</span></button></header>
+<section class="page-heading"><div><div class="eyebrow">ГЕНЕРАТОР ИНТЕГРАЦИЙ</div><h1 id="page-title">Начните со спецификации</h1><p id="page-description">Загрузите OpenAPI-файл вашего платёжного провайдера.</p></div><span id="provider-badge" class="provider-badge" hidden></span></section>
+<nav class="steps" aria-label="Этапы"><button type="button" data-stage="0" aria-current="step"><span class="step-number">1</span>Спецификация</button><button type="button" data-stage="1" disabled><span class="step-number">2</span>Разбор API</button><button type="button" data-stage="2" disabled><span class="step-number">3</span>Код и файлы</button><button type="button" data-stage="3" disabled><span class="step-number">4</span>Проверка</button></nav>
+<div id="error-banner" class="error-banner" role="alert" hidden><div><strong id="error-title">Не удалось выполнить действие</strong><p id="error-message"></p></div><button type="button" id="dismiss-error" aria-label="Закрыть сообщение">×</button></div><div id="busy-banner" class="busy-banner" role="status" hidden><span class="spinner" aria-hidden="true"></span><span id="busy-label"></span></div>
+<div class="workspace"><aside class="source-panel panel"><div class="section-label">ИСТОЧНИК</div><form id="source-form"><div id="drop-zone" class="drop-zone"><span class="upload-symbol" aria-hidden="true">↑</span><strong id="drop-title">Перетащите YAML</strong><span class="muted" id="drop-caption">или выберите файл</span><label class="button small file-picker" for="spec-file">Выбрать файл<input type="file" id="spec-file" name="spec" accept=".yaml,.yml" aria-label="Спецификация OpenAPI в YAML"></label><span class="file-limit">.yaml, .yml · до 1 МБ</span></div><div id="selected-file" class="selected-file" hidden><span class="file-icon">YML</span><div><strong id="file-name"></strong><span id="file-size"></span></div></div><label class="field-label" for="provider">Имя провайдера</label><input id="provider" name="provider" type="text" placeholder="Например, novapay" pattern="[a-z][a-z0-9_]{1,32}" minlength="2" maxlength="33" autocomplete="off" spellcheck="false" required aria-describedby="provider-hint"><p id="provider-hint" class="field-hint">2–33 символа: латиница, цифры и _. Начните с буквы.</p><button class="button primary full" id="analyze-button" type="submit">Разобрать спецификацию →</button></form><div id="source-summary" class="source-summary" hidden></div><div id="endpoint-section" hidden><div class="panel-divider"></div><div class="section-label">МЕТОДЫ API <span id="endpoint-count"></span></div><div id="endpoint-list" class="endpoint-list"></div></div><div id="file-section" hidden><div class="panel-divider"></div><div class="section-label">ФАЙЛЫ РЕЗУЛЬТАТА</div><div id="file-list" class="file-list"></div></div></aside>
+<section class="result-area"><div id="welcome-view" class="panel welcome-panel"><div class="welcome-top"><span class="outline-mark" aria-hidden="true">{ }</span><span class="section-label">ВАШЕ API. ЕДИНЫЙ КОНТРАКТ.</span></div><h2>Всё начинается<br>с одного файла.</h2><p>PayBridge разберёт методы, авторизацию и статусы, затем подготовит Ruby-сервис и материалы для подключения.</p><div class="output-preview"><div><span class="output-number">01</span><strong>Ruby-сервис</strong><span>Код интеграции</span></div><div><span class="output-number">02</span><strong>Документация</strong><span>Параметры подключения</span></div><div><span class="output-number">03</span><strong>Тесты и fixtures</strong><span>Сценарии проверки</span></div></div><div class="welcome-note">Данные появятся после разбора вашей спецификации.</div></div>
+<section id="model-view" class="panel" hidden><div class="tabs" role="tablist" aria-label="Результат разбора"><button type="button" id="tab-methods" data-tab="methods" role="tab" aria-controls="model-content" aria-selected="true">Методы</button><button type="button" id="tab-statuses" data-tab="statuses" role="tab" aria-controls="model-content" aria-selected="false">Статусы</button><button type="button" id="tab-auth" data-tab="auth" role="tab" aria-controls="model-content" aria-selected="false">Авторизация</button><button type="button" id="tab-webhook" data-tab="webhook" role="tab" aria-controls="model-content" aria-selected="false">Webhook</button></div><div class="panel-content" id="model-content" role="tabpanel" aria-labelledby="tab-methods"></div></section>
+<section id="files-view" class="panel" hidden><div class="file-toolbar"><div><span class="section-label">ИСХОДНЫЙ ФАЙЛ</span><strong id="active-file-name">Выберите файл</strong></div><div class="toolbar-actions"><button class="button small" type="button" id="copy-file" disabled>Копировать</button><a class="button small" id="download-file" hidden download>Скачать файл</a></div></div><div id="file-feedback" role="status" class="file-feedback"></div><pre class="code-view"><code id="file-code"></code></pre></section>
+<section id="verification-view" class="panel" hidden><div class="panel-content"><div class="section-label">КАЧЕСТВО ИНТЕГРАЦИИ</div><h2>Каждый этап — отдельно</h2><p class="muted">Создание файлов, синтаксис и сценарии проверяют разные части результата.</p><div id="verification-summary" class="verification-summary"></div><div id="verification-report"></div><div id="verify-unavailable" class="inline-note" hidden></div><button type="button" id="verify-button" class="button primary">Запустить проверку</button></div></section>
+<section id="warnings-panel" class="warnings-panel" hidden><div class="warning-heading"><span aria-hidden="true">△</span><h2>Требует внимания</h2><span id="warning-count"></span></div><ul id="warnings-list"></ul></section>
+<footer id="action-footer" class="action-footer" hidden><div id="footer-description" class="muted"></div><div class="footer-actions"><button type="button" id="generate-button" class="button primary">Сгенерировать интеграцию →</button><button type="button" id="review-button" class="button" hidden>К проверке →</button><a id="download-archive" class="button primary" hidden download>Скачать ZIP ↓</a></div></footer></section></div>
+<div class="page-footer"><span>PayBridge</span><span>Детерминированная генерация · без нейросетей</span></div><noscript><div class="error-banner">Для работы интерфейса включите JavaScript.</div></noscript></main></div><div id="toast" class="toast" role="status" hidden></div></body></html>
