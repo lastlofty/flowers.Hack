@@ -84,18 +84,22 @@ module Paybridge
         o.on('--dir DIR', 'Каталог со сгенерированной интеграцией') { |v| dir = v }
       end.parse!(argv)
 
-      report = Verifier.new(dir).run
+      report = VerificationRunner.new(timeout: ENV.fetch('PAYBRIDGE_VERIFY_TIMEOUT', '10')).run(dir)
       report.cases.each do |c|
-        mark = c.ok ? "\e[32mOK  \e[0m" : "\e[31mFAIL\e[0m"
+        mark = case c.status
+               when 'passed' then "\e[32mOK  \e[0m"
+               when 'skipped' then "\e[33mSKIP\e[0m"
+               else "\e[31mFAIL\e[0m"
+               end
         line = "  #{mark} #{c.name}"
-        line += " — #{c.detail}" unless c.ok
+        line += " — #{c.detail}" unless c.status == 'passed'
         puts line
       end
       puts
-      puts "#{report.passed} passed, #{report.failed} failed"
-      report.all_passed? ? 0 : 1
-    rescue Verifier::LoadError => e
-      warn "\e[31mОшибка загрузки интеграции:\e[0m #{e.message}"
+      puts "#{report.passed} passed, #{report.failed} failed, #{report.skipped} skipped"
+      report.failed.zero? ? 0 : 1
+    rescue VerificationRunner::Unavailable, VerificationRunner::TimedOut, VerificationRunner::ExecutionError => e
+      warn "\e[31mПроверка недоступна:\e[0m #{e.message}"
       1
     end
 

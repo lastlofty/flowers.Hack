@@ -12,6 +12,7 @@ require_relative 'paybridge/generators/docs_generator'
 require_relative 'paybridge/generators/fixtures_generator'
 require_relative 'paybridge/generators/test_generator'
 require_relative 'paybridge/verifier'
+require_relative 'paybridge/verification_runner'
 require_relative 'paybridge/cli'
 
 # Единая точка входа PayBridge.
@@ -28,7 +29,7 @@ module Paybridge
   BASE_SERVICE   = File.expand_path('paybridge/templates/base_service.rb', __dir__)
 
   # Результат генерации, который потребляет бэкенд.
-  Generation = Struct.new(:provider, :files, :warnings, :endpoints, keyword_init: true)
+  Generation = Struct.new(:provider, :files, :warnings, :endpoints, :model, keyword_init: true)
 
   # Ошибка разбора/генерации — бэкенд оборачивает её в HTTP 422.
   class GenerationError < StandardError; end
@@ -83,7 +84,8 @@ module Paybridge
       warnings: spec.report.warnings,
       endpoints: spec.endpoints.map do |e|
         { method: e.http_method.upcase, path: e.path, role: e.role.to_s }
-      end
+      end,
+      model: model_for(spec, provider)
     )
   rescue SpecParser::ParseError => e
     raise GenerationError, e.message
@@ -97,6 +99,12 @@ module Paybridge
     overrides = load_overrides(overrides_path)
     spec      = SpecParser.new(spec_path, provider, config, overrides).parse
 
+    model_for(spec, provider)
+  rescue SpecParser::ParseError => e
+    raise GenerationError, e.message
+  end
+
+  def self.model_for(spec, provider)
     {
       provider: provider,
       title: spec.title,
@@ -121,7 +129,5 @@ module Paybridge
       },
       warnings: spec.report.warnings
     }
-  rescue SpecParser::ParseError => e
-    raise GenerationError, e.message
   end
 end

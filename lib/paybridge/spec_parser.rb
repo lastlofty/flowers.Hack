@@ -1,6 +1,11 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require 'ipaddr'
+require 'net/http'
+require 'openssl'
+require 'socket'
+require 'uri'
 require_relative 'ir'
 require_relative 'report'
 require_relative 'safe'
@@ -25,6 +30,10 @@ module Paybridge
 
     VALID_AMOUNT_UNIT  = %w[minor major].freeze
     VALID_SIG_ENCODING = %w[hex base64].freeze
+    MAX_SPEC_BYTES = 1_000_000
+    URL_OPEN_TIMEOUT = 3
+    URL_READ_TIMEOUT = 3
+    MAX_REDIRECTS = 3
 
     def parse
       Safe.provider!(@provider)
@@ -83,8 +92,6 @@ module Paybridge
 
     private
 
-    MAX_SPEC_BYTES = 1_000_000
-
     def load_yaml
       YAML.safe_load(read_spec_source, aliases: true)
     rescue Psych::SyntaxError => e
@@ -100,21 +107,75 @@ module Paybridge
       File.read(@spec_path)
     end
 
-    def fetch_url(url)
-      require 'open-uri'
-      uri = URI.parse(url)
-      raise ParseError, "Неподдерживаемый URL: #{url}" unless %w[http https].include?(uri.scheme)
+    def fetch_url(url, redirects = 0)
+      raise ParseError, 'Слишком много перенаправлений при загрузке спецификации' if redirects > MAX_REDIRECTS
 
-      content = +''
-      uri.open('rb') do |io|
-        while (chunk = io.read(65_536))
-          content << chunk
-          raise ParseError, 'Спецификация по URL больше 1 МБ' if content.bytesize > MAX_SPEC_BYTES
+      uri = URI.parse(url)
+      validate_remote_uri!(uri)
+      address = resolve_public_address!(uri.host)
+      http = Net::HTTP.new(uri.host, uri.port, nil)
+      http.ipaddr = address
+      http.use_ssl = uri.scheme == 'https'
+      http.open_timeout = URL_OPEN_TIMEOUT
+      http.read_timeout = URL_READ_TIMEOUT
+      http.write_timeout = URL_OPEN_TIMEOUT
+
+      http.start do |client|
+        request = Net::HTTP::Get.new(uri.request_uri, 'Accept' => 'application/yaml, text/yaml, */*')
+        client.request(request) do |response|
+          if response.is_a?(Net::HTTPRedirection)
+            location = response['location']
+            raise ParseError, 'Перенаправление URL без Location' if location.to_s.empty?
+
+            return fetch_url(URI.join(uri, location).to_s, redirects + 1)
+          end
+          unless response.is_a?(Net::HTTPSuccess)
+            raise ParseError, "URL спецификации вернул HTTP #{response.code}"
+          end
+
+          declared_size = response['content-length'].to_i
+          raise ParseError, 'Спецификация по URL больше 1 МБ' if declared_size > MAX_SPEC_BYTES
+
+          content = +''
+          response.read_body do |chunk|
+            content << chunk
+            raise ParseError, 'Спецификация по URL больше 1 МБ' if content.bytesize > MAX_SPEC_BYTES
+          end
+          return content
         end
       end
-      content
-    rescue OpenURI::HTTPError, SocketError, Errno::ECONNREFUSED, Timeout::Error => e
+    rescue URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, IOError,
+           Net::ProtocolError, OpenSSL::SSL::SSLError => e
       raise ParseError, "Не удалось загрузить спецификацию по URL: #{e.message}"
+    end
+
+    def validate_remote_uri!(uri)
+      return if %w[http https].include?(uri.scheme) && uri.host && uri.userinfo.nil?
+
+      raise ParseError, 'Разрешены только HTTP(S) URL без credentials'
+    end
+
+    def resolve_public_address!(host)
+      addresses = Addrinfo.getaddrinfo(host, nil, nil, :STREAM).map(&:ip_address).uniq
+      raise ParseError, 'URL не разрешается в IP-адрес' if addresses.empty?
+      return addresses.first if ENV['PAYBRIDGE_ALLOW_PRIVATE_SPEC_URLS'] == '1'
+
+      blocked = addresses.any? { |address| blocked_address?(address) }
+      raise ParseError, 'URL указывает на локальный или служебный адрес' if blocked
+
+      addresses.first
+    end
+
+    def blocked_address?(address)
+      ip = IPAddr.new(address)
+      multicast = if ip.ipv4?
+                    IPAddr.new('224.0.0.0/4').include?(ip)
+                  else
+                    IPAddr.new('ff00::/8').include?(ip)
+                  end
+      ip.private? || ip.loopback? || ip.link_local? || multicast || ip.to_i.zero?
+    rescue IPAddr::InvalidAddressError
+      true
     end
 
     def validate_openapi!

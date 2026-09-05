@@ -21,7 +21,11 @@ class TestGenerators < Minitest::Test
     assert_includes code, "'X-API-Key' => provider.credentials.fetch('api_key')"
     assert_includes code, "OpenSSL::HMAC.hexdigest('SHA256'"
     assert_includes code, "when 'payout.completed', 'payout.processing'"
-    assert_includes code, "when 201, 409"
+    assert_includes code, 'def process_callback(raw_body, signature = nil, _headers = {})'
+    assert_includes code, 'verify_signature!(raw_body, signature)'
+    assert_includes code, 'when 201'
+    assert_includes code, 'when 409'
+    refute_includes code, 'when 201, 409'
   end
 
   def test_docs_generation
@@ -34,9 +38,19 @@ class TestGenerators < Minitest::Test
   def test_fixtures_generation
     json = Paybridge::Generators::FixturesGenerator.new(@spec).render
     data = JSON.parse(json)
+    assert_equal 2, data['contract_version']
     assert_equal 'novapay', data['provider']
     assert data['create_request']['request']
+    assert_equal 'openapi', data['create_request']['request_source']
+    assert data['create_request']['operation']
+    assert_equal 'synthetic', data['create_request']['source_409_idempotent']
+    assert_equal 'synthetic', data['create_request']['source_409_conflict']
+    assert_equal 'success', data['create_request']['expected_409_idempotent']['status']
+    assert_equal 'failed', data['create_request']['expected_409_conflict']['status']
     assert data['callback']
+    callback_entry = data['callback'].values.find { |value| value.is_a?(Hash) && value['payload'] }
+    assert callback_entry['raw_body']
+    assert_equal 'openapi', callback_entry['source']
   end
 
   def test_facade_rejects_invalid_provider_name

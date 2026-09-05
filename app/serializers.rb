@@ -14,18 +14,13 @@ module Paybridge
         warnings: model.warnings,
         valid: model.valid,
         syntax_error: model.syntax_error,
-        created_at: model.created_at
+        created_at: model.created_at,
+        verification: model.verification
       }
     end
 
     def verification(report)
-      {
-        passed: report.passed,
-        failed: report.failed,
-        cases: report.cases.map do |test_case|
-          { name: test_case.name, ok: test_case.ok, detail: test_case.detail }
-        end
-      }
+      report.to_h
     end
   end
 end

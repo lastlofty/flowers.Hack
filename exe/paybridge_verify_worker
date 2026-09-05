@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+protocol = $stdout.dup
+$stdout.reopen($stderr)
+
+require '/runner/verifier'
+
+module Paybridge
+  PROVIDER_RE = /\A[a-z][a-z0-9_]{1,32}\z/ unless const_defined?(:PROVIDER_RE)
+end
+
+begin
+  report = Paybridge::Verifier.new(ARGV.fetch(0)).run
+  protocol.write(JSON.generate(protocol_version: 1, status: 'ok', report: report.to_h))
+rescue StandardError => e
+  message = "#{e.class}: #{e.message}".encode('UTF-8', invalid: :replace, undef: :replace).slice(0, 500)
+  protocol.write(JSON.generate(protocol_version: 1, status: 'error',
+                               error: { code: 'verification_error', message: message }))
+  exit 2
+ensure
+  protocol.close
+end

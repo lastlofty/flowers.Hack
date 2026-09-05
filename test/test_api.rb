@@ -4,10 +4,47 @@ require 'minitest/autorun'
 require 'rack/test'
 require 'json'
 require 'tempfile'
+require 'tmpdir'
 require_relative '../app/api'
 
 class APITest < Minitest::Test
   include Rack::Test::Methods
+
+  class FakeRunner
+    def available? = true
+
+    def run(_dir)
+      test_case = Paybridge::Verifier::Case.new(
+        name: 'create_request.response_201', status: 'passed', ok: true, detail: 'ok'
+      )
+      Paybridge::Verifier::Report.new(cases: [test_case], checked_at: Time.now.utc.iso8601)
+    end
+  end
+
+  class UnavailableRunner
+    def available? = false
+    def run(_dir) = raise(Paybridge::VerificationRunner::Unavailable, 'unavailable')
+  end
+
+  class TimeoutRunner
+    def available? = true
+    def run(_dir) = raise(Paybridge::VerificationRunner::TimedOut, 'timeout')
+  end
+
+  class BrokenRunner
+    def available? = true
+    def run(_dir) = raise('ARTIFICIAL_SECRET_VALUE')
+  end
+
+  def setup
+    @storage = Dir.mktmpdir('paybridge_api_test_')
+    Paybridge::API.set :store, Paybridge::Store.new(@storage)
+    Paybridge::API.set :verification_runner, FakeRunner.new
+  end
+
+  def teardown
+    FileUtils.remove_entry(@storage) if @storage && Dir.exist?(@storage)
+  end
 
   def app
     Paybridge::API
@@ -22,6 +59,8 @@ class APITest < Minitest::Test
     get '/api/health'
     assert_equal 200, last_response.status
     assert_equal 'ok', JSON.parse(last_response.body)['status']
+    assert_equal true, JSON.parse(last_response.body)['verification_available']
+    assert_match(/\Areq_[0-9a-f]{24}\z/, JSON.parse(last_response.body)['request_id'])
   end
 
   def test_generate_happy_path
@@ -33,6 +72,7 @@ class APITest < Minitest::Test
     refute_empty body['endpoints']
     assert_equal true, body['valid']
     assert_nil body['syntax_error']
+    assert_equal 'not_run', body.dig('verification', 'status')
   end
 
   def test_validate_returns_model_without_saving_integration
@@ -106,7 +146,97 @@ class APITest < Minitest::Test
     body = JSON.parse(last_response.body)
     assert_operator body['passed'], :>, 0
     assert_equal 0, body['failed']
+    assert_equal 0, body['skipped']
+    assert_equal 'passed', body['status']
     refute_empty body['cases']
+
+    get "/api/integrations/#{id}"
+    assert_equal 'passed', JSON.parse(last_response.body).dig('verification', 'status')
+  end
+
+  def test_model_and_list_survive_store_restart
+    post '/api/integrations', spec: spec_upload, provider: 'novapay'
+    id = JSON.parse(last_response.body)['id']
+
+    get "/api/integrations/#{id}/model"
+    assert_equal 200, last_response.status
+    assert_equal 'novapay', JSON.parse(last_response.body)['provider']
+
+    Paybridge::API.set :store, Paybridge::Store.new(@storage)
+    get "/api/integrations/#{id}"
+    assert_equal 200, last_response.status
+
+    get '/api/integrations?page=1&per_page=20'
+    body = JSON.parse(last_response.body)
+    assert_equal 1, body['total']
+    assert_equal id, body.dig('items', 0, 'id')
+  end
+
+  def test_invalid_pagination
+    get '/api/integrations?page=0&per_page=101'
+    assert_equal 400, last_response.status
+    assert_equal 'invalid_pagination', JSON.parse(last_response.body).dig('error', 'code')
+  end
+
+  def test_verify_unavailable_is_503_and_persisted
+    post '/api/integrations', spec: spec_upload, provider: 'novapay'
+    id = JSON.parse(last_response.body)['id']
+    Paybridge::API.set :verification_runner, UnavailableRunner.new
+
+    post "/api/integrations/#{id}/verify"
+    assert_equal 503, last_response.status
+    assert_equal 'verification_unavailable', JSON.parse(last_response.body).dig('error', 'code')
+
+    get "/api/integrations/#{id}"
+    assert_equal 'unavailable', JSON.parse(last_response.body).dig('verification', 'status')
+  end
+
+  def test_verify_timeout_is_504_and_not_success
+    post '/api/integrations', spec: spec_upload, provider: 'novapay'
+    id = JSON.parse(last_response.body)['id']
+    Paybridge::API.set :verification_runner, TimeoutRunner.new
+
+    post "/api/integrations/#{id}/verify"
+    assert_equal 504, last_response.status
+    assert_equal 'verification_timeout', JSON.parse(last_response.body).dig('error', 'code')
+
+    get "/api/integrations/#{id}"
+    assert_equal 'error', JSON.parse(last_response.body).dig('verification', 'status')
+  end
+
+  def test_generation_timeout_is_504
+    original = Paybridge.method(:parse_only)
+    Paybridge.define_singleton_method(:parse_only) do |**_arguments|
+      sleep 0.2
+    end
+    Paybridge::API.set :generation_timeout, 0.01
+
+    post '/api/validate', spec: spec_upload, provider: 'novapay'
+    assert_equal 504, last_response.status
+    assert_equal 'generation_timeout', JSON.parse(last_response.body).dig('error', 'code')
+  ensure
+    Paybridge.define_singleton_method(:parse_only, original) if original
+    Paybridge::API.set :generation_timeout, 10
+  end
+
+  def test_request_id_is_echoed_and_in_error_body
+    get '/api/health', {}, 'HTTP_X_REQUEST_ID' => 'req_client_123'
+    assert_equal 'req_client_123', last_response.headers['X-Request-ID']
+    assert_equal 'req_client_123', JSON.parse(last_response.body)['request_id']
+
+    post '/api/integrations', { provider: 'novapay' }, 'HTTP_X_REQUEST_ID' => 'req_error_123'
+    assert_equal 'req_error_123', JSON.parse(last_response.body)['request_id']
+  end
+
+  def test_unexpected_error_is_500_without_internal_detail
+    post '/api/integrations', spec: spec_upload, provider: 'novapay'
+    id = JSON.parse(last_response.body)['id']
+    Paybridge::API.set :verification_runner, BrokenRunner.new
+
+    post "/api/integrations/#{id}/verify"
+    assert_equal 500, last_response.status
+    refute_includes last_response.body, 'ARTIFICIAL_SECRET_VALUE'
+    assert_equal 'internal_error', JSON.parse(last_response.body).dig('error', 'code')
   end
 
   def test_invalid_provider

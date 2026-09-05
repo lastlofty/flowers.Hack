@@ -37,7 +37,7 @@ module Provider
       raise NotImplementedError
     end
 
-    def process_callback(_payload)
+    def process_callback(_raw_body, _signature = nil, _headers = {})
       raise NotImplementedError
     end
 

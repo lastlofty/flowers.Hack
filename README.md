@@ -28,6 +28,7 @@ DECISIONS.md           # канон, допущения, точки расшир
 
 ```bash
 bundle install
+docker pull ruby:3.2-bookworm # ограниченная среда для verify
 bundle exec rackup      # http://localhost:9292
 ```
 
@@ -67,6 +68,10 @@ ruby exe/integrate --spec examples/bluepay_api.yaml --provider bluepay
 ```bash
 ruby exe/integrate --spec https://example.com/provider_api.yaml --provider novapay
 ```
+
+Загрузчик URL имеет таймауты, лимит 1 МБ, ограничение на redirect и защиту от
+SSRF: локальные и служебные IP по умолчанию запрещены. Для изолированной локальной
+разработки их можно явно разрешить через `PAYBRIDGE_ALLOW_PRIVATE_SPEC_URLS=1`.
 
 Результат — пять файлов в `./output/`: три основных артефакта
 (`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`) и два проверочных
@@ -128,12 +133,19 @@ ruby -Ilib -Itest test/test_api.rb
 |-------|------|-----------|
 | POST | `/api/validate` | Dry-run: разобрать спецификацию без файлов и записи в storage |
 | POST | `/api/integrations` | Загрузить спецификацию, сгенерировать интеграцию |
-| GET | `/api/integrations/:id` | Метаданные + файлы + предупреждения |
+| GET | `/api/integrations` | История с пагинацией |
+| GET | `/api/integrations/:id` | Метаданные + файлы + последний verify |
+| GET | `/api/integrations/:id/model` | Сохранённая распознанная модель |
 | GET | `/api/integrations/:id/files/:name` | Скачать один файл |
 | GET | `/api/integrations/:id/archive` | Скачать zip |
 | POST | `/api/integrations/:id/verify` | Прогнать fixtures против сгенерированного сервиса |
-| GET | `/api/health` | Проверка живости |
+| GET | `/api/health` | Живость и доступность безопасного verify |
 
 Ответ создания содержит `valid` и `syntax_error`: бэкенд автоматически запускает
 `ruby -c` для сгенерированного сервиса. Ошибка синтаксиса остаётся видимым результатом,
 но не роняет API.
+
+HTTP `verify` выполняется только в одноразовом Docker-контейнере без сети и доступа
+к секретам/общему storage. Если изоляция недоступна, API отвечает 503 и не включает
+локальный fallback. Подробности: [безопасный запуск](docs/verification-sandbox.md) и
+[контракт Web API](docs/web-api.md).
