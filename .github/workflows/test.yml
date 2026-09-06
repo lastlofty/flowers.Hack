@@ -10,13 +10,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        ruby: ['3.2', '3.3']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: .ruby-version   # единый источник версии — .ruby-version
           bundler-cache: true
       # Python нужен для тестов линтера (tools/openapi_lint.py); на Windows
       # проверяем кросс-платформенную кодировку вывода линтера.
