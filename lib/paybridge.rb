@@ -12,6 +12,7 @@ require_relative 'paybridge/generators/docs_generator'
 require_relative 'paybridge/generators/fixtures_generator'
 require_relative 'paybridge/generators/test_generator'
 require_relative 'paybridge/generators/mapping_generator'
+require_relative 'paybridge/generators/postman_generator'
 require_relative 'paybridge/verifier'
 require_relative 'paybridge/verification_runner'
 require_relative 'paybridge/linter'
@@ -80,7 +81,9 @@ module Paybridge
       "#{provider}_service_spec.rb" =>
         Generators::TestGenerator.new(spec, spec_source: source, config: config).render,
       "#{provider}_mapping.yml" =>
-        Generators::MappingGenerator.new(spec, spec_source: source, config: config).render
+        Generators::MappingGenerator.new(spec, spec_source: source, config: config).render,
+      "#{provider}.postman_collection.json" =>
+        Generators::PostmanGenerator.new(spec, spec_source: source, config: config).render
     }
 
     Generation.new(

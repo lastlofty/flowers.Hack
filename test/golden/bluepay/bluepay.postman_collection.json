@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "bluepay — интеграция (PayBridge)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://sandbox.bluepay.example/api"
+    },
+    {
+      "key": "api_key",
+      "value": ""
+    },
+    {
+      "key": "provider_operation_id",
+      "value": "op_test"
+    }
+  ],
+  "item": [
+    {
+      "name": "Создание операции",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Api-Token",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/transfers",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "transfers"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 500,\n  \"currency\": \"USD\",\n  \"reference\": \"ref_777\",\n  \"recipient\": {\n    \"type\": \"card\",\n    \"card_number\": \"4111111111111111\",\n    \"holder_name\": \"IVAN PETROV\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Статус операции",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Api-Token",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/transfers/{{provider_operation_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "transfers",
+            "{{provider_operation_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Webhook (входящее уведомление, пример)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hooks/transfer",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hooks",
+            "transfer"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"transfer.done\",\n  \"transfer_id\": \"bp_5510aa\",\n  \"status\": \"done\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

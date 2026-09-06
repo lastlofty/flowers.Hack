@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "novapay — интеграция (PayBridge)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.sandbox.novapay.example/v1"
+    },
+    {
+      "key": "api_key",
+      "value": ""
+    },
+    {
+      "key": "provider_operation_id",
+      "value": "op_test"
+    }
+  ],
+  "item": [
+    {
+      "name": "Создание операции",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payouts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payouts"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 1500000,\n  \"currency\": \"RUB\",\n  \"external_id\": \"op_abc123\",\n  \"recipient\": {\n    \"type\": \"sbp\",\n    \"phone\": \"79001234567\",\n    \"bank_code\": \"044525225\",\n    \"bank_name\": \"Сбербанк\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Статус операции",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payouts/{{provider_operation_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payouts",
+            "{{provider_operation_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Отмена",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payouts/{{provider_operation_id}}/cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payouts",
+            "{{provider_operation_id}}",
+            "cancel"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Webhook (входящее уведомление, пример)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/webhooks/payout",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "payout"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"payout.completed\",\n  \"payout_id\": \"np_7f3a9b2c\",\n  \"external_id\": \"op_abc123\",\n  \"status\": \"completed\",\n  \"completed_at\": \"2026-07-30T10:05:00Z\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "europay — интеграция (PayBridge)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://sandbox.europay.example/v3"
+    },
+    {
+      "key": "api_key",
+      "value": ""
+    },
+    {
+      "key": "provider_operation_id",
+      "value": "op_test"
+    }
+  ],
+  "item": [
+    {
+      "name": "Создание операции",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Auth-Token",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payments",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 250,\n  \"currency\": \"EUR\",\n  \"order_id\": \"ord_9000\",\n  \"recipient\": {\n    \"type\": \"sepa\",\n    \"iban\": \"DE89370400440532013000\",\n    \"holder_name\": \"IVAN PETROV\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Статус операции",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Auth-Token",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payments/{{provider_operation_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "{{provider_operation_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Webhook (входящее уведомление, пример)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/webhooks/payment",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "payment"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"payment.captured\",\n  \"payment_id\": \"ep_777\",\n  \"status\": \"captured\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
