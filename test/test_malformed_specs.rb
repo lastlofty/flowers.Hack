@@ -44,6 +44,44 @@ class TestMalformedSpecs < Minitest::Test
     assert_generation_error(doc, 'properties=true')
   end
 
+  # Swagger 2.0: кривые структуры -> ParseError/GenerationError, не сырой краш.
+  def test_swagger2_malformed_shapes
+    [
+      { 'swagger' => '2.0', 'info' => { 'title' => 'T', 'version' => '1' }, 'host' => 'h',
+        'paths' => { '/p' => { 'post' => { 'parameters' => 'not-array', 'responses' => {} } } } },
+      { 'swagger' => '2.0', 'info' => { 'title' => 'T', 'version' => '1' }, 'host' => 'h',
+        'paths' => { '/p' => { 'post' => { 'parameters' => [{ 'in' => 'body', 'name' => 'b', 'schema' => 42 }],
+                                           'responses' => {} } } } },
+      { 'swagger' => '2.0', 'info' => { 'title' => 'T', 'version' => '1' }, 'definitions' => 5, 'paths' => {} },
+      { 'swagger' => '2.0', 'info' => { 'title' => 'T', 'version' => '1' }, 'host' => %w[a b],
+        'schemes' => 'x', 'paths' => 123 }
+    ].each_with_index { |doc, i| assert_generation_error(doc, "swagger2/#{i}") }
+  end
+
+  # Overrides ядовитых типов -> без сырого краша.
+  def test_overrides_poison_types
+    [
+      { 'create_endpoint' => [1, 2] }, { 'security_scheme' => 123 },
+      { 'required_if' => 'nope' }, { 'status_endpoint' => 99 }
+    ].each_with_index do |ov, i|
+      ovf = Tempfile.new(['ov', '.yml'])
+      ovf.write(YAML.dump(ov))
+      ovf.rewind
+      begin
+        Paybridge.generate(
+          spec_path: File.expand_path('../examples/provider_api.yaml', __dir__),
+          provider: 'malformed', overrides_path: ovf.path
+        )
+      rescue Paybridge::GenerationError
+        # ок
+      rescue StandardError => e
+        flunk "overrides/#{i}: сырой краш #{e.class}: #{e.message}"
+      ensure
+        ovf.close!
+      end
+    end
+  end
+
   def test_property_value_not_hash
     doc = dup(base)
     doc['components']['schemas']['CreatePayoutRequest']['properties']['amount'] = true

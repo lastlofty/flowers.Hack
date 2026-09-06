@@ -159,7 +159,13 @@ module Paybridge
       @line_index = LineIndex.new(content)
       doc = YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
       # Swagger 2.0 -> нормализуем в 3.x на входе (paths сохраняются -> source-map жив).
-      SwaggerConverter.convert(doc) if doc.is_a?(Hash)
+      # Конвертер работает до guarded_build, поэтому его ошибки на кривой 2.0-спеке
+      # заворачиваем здесь — чтобы был честный ParseError, а не сырой краш.
+      begin
+        SwaggerConverter.convert(doc) if doc.is_a?(Hash)
+      rescue StandardError => e
+        raise ParseError, "Не удалось разобрать Swagger 2.0: #{e.class}: #{e.message}"
+      end
       doc
     rescue Psych::Exception, EncodingError, ArgumentError => e
       # Psych: SyntaxError/DisallowedClass (!ruby/object, символ)/BadAlias;
