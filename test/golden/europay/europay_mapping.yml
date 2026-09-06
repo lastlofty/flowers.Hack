@@ -1,0 +1,44 @@
+---
+provenance:
+  generator: PayBridge 1.0.0
+  provider: europay
+  spec_source: europay_api.yaml
+  spec_sha256: 2fabca5a34b11593d2945f237d7e13a48ae0d8978dc3014ad90fb794ea5fdbd6
+recognized:
+  create: POST /payments
+  status: GET /payments/{payment_id}
+  cancel:
+  webhook: POST /webhooks/payment
+auth:
+  type: apiKey
+  scheme:
+  location: header
+  header: X-Auth-Token
+  credentials_field: api_key
+idempotency_header:
+amount:
+  field: amount
+  unit: major
+  min_native: 1
+currency: EUR
+status_map:
+  authorized: in_progress
+  captured: approved
+  declined: rejected
+  refunded: rejected
+error_map:
+  '401': invalid_credentials
+  '404': not_found
+  '422': validation_error
+  '500': internal_error
+recipient_methods:
+manual_fields: []
+warnings:
+- 'Единица суммы не выражается в OpenAPI: принята ''major'' (по описанию/минимуму).
+  Уточните overrides.amount_unit при необходимости.'
+- 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
+  при необходимости.'
+summary:
+  endpoints: 3
+  manual_fields: 0
+  warnings: 2

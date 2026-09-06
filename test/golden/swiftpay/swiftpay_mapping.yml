@@ -1,0 +1,41 @@
+---
+provenance:
+  generator: PayBridge 1.0.0
+  provider: swiftpay
+  spec_source: swiftpay_api.yaml
+  spec_sha256: d4d9a3ec1715ef3bb3653fc9dec496cafb4d48e60daf67e3723a4bec2655d745
+recognized:
+  create: POST /payments
+  status: GET /payments/{payment_id}
+  cancel:
+  webhook:
+auth:
+  type: http
+  scheme: bearer
+  location:
+  header: Authorization
+  credentials_field: token
+idempotency_header:
+amount:
+  field: amount
+  unit: minor
+  min_native: 100
+currency: USD
+status_map:
+  pending: in_progress
+  completed: approved
+  failed: rejected
+error_map:
+  '401': invalid_credentials
+  '404': not_found
+  '422': validation_error
+  '500': internal_error
+recipient_methods:
+manual_fields: []
+warnings:
+- 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
+  Уточните overrides.amount_unit при необходимости.'
+summary:
+  endpoints: 2
+  manual_fields: 0
+  warnings: 1

@@ -1,0 +1,55 @@
+---
+provenance:
+  generator: PayBridge 1.0.0
+  provider: novapay
+  spec_source: provider_api.yaml
+  spec_sha256: 415f50ee36fb331dfab49ceed0e8ed3b0ebe16053d7e00dbabd32282f4396551
+recognized:
+  create: POST /payouts
+  status: GET /payouts/{payout_id}
+  cancel: POST /payouts/{payout_id}/cancel
+  webhook: POST /webhooks/payout
+auth:
+  type: apiKey
+  scheme:
+  location: header
+  header: X-API-Key
+  credentials_field: api_key
+idempotency_header: Idempotency-Key
+amount:
+  field: amount
+  unit: minor
+  min_native: 100000
+currency: RUB
+status_map:
+  pending: in_progress
+  processing: in_progress
+  completed: approved
+  failed: rejected
+  cancelled: rejected
+error_map:
+  '400': validation_error
+  '401': invalid_credentials
+  '402': insufficient_balance
+  '404': not_found
+  '409': duplicate
+  '422': validation_error
+  '429': rate_limit
+  '500': internal_error
+recipient_methods:
+- sbp
+- card
+manual_fields: []
+warnings:
+- 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
+  Уточните overrides.amount_unit при необходимости.'
+- Условная обязательность поля 'bank_code' выведена из текста description. Уточните
+  overrides.required_if при необходимости.
+- Условная обязательность поля 'card_number' выведена из текста description. Уточните
+  overrides.required_if при необходимости.
+- 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
+  при необходимости.'
+summary:
+  endpoints: 5
+  manual_fields: 0
+  warnings: 4

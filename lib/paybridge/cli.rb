@@ -18,7 +18,6 @@ module Paybridge
 
       options = parse_options(argv)
       run(options)
-      0
     rescue SpecParser::ParseError => e
       warn "\e[31mОшибка разбора спецификации:\e[0m #{e.message}"
       1
@@ -156,6 +155,7 @@ module Paybridge
         o.on('--output DIR', 'Каталог для результатов (по умолчанию ./output)') { |v| options[:output] = v }
         o.on('--config PATH', 'Файл правил маппинга') { |v| options[:config] = v }
         o.on('--overrides PATH', 'Файл уточнений (amount_unit, signature_encoding, required_if)') { |v| options[:overrides] = v }
+        o.on('--strict', 'Ненулевой код выхода, если есть поля для ручного заполнения') { options[:strict] = true }
         o.on('--lang LANG', 'Язык генерации (поддерживается только ruby)') { |v| options[:lang] = v }
         o.on('-h', '--help', 'Показать справку') { puts o; exit 0 }
       end
@@ -185,7 +185,8 @@ module Paybridge
         'service' => Generators::ServiceGenerator.new(spec, spec_source: source, config: config),
         'integration guide' => Generators::DocsGenerator.new(spec, spec_source: source, config: config),
         'test fixtures' => Generators::FixturesGenerator.new(spec, spec_source: source, config: config),
-        'executable test' => Generators::TestGenerator.new(spec, spec_source: source, config: config)
+        'executable test' => Generators::TestGenerator.new(spec, spec_source: source, config: config),
+        'decisions map' => Generators::MappingGenerator.new(spec, spec_source: source, config: config)
       }
 
       written = []
@@ -202,6 +203,13 @@ module Paybridge
       written << base_path
 
       print_result(written, spec)
+
+      # --strict: незакрытые поля для ручного заполнения -> ненулевой код (для CI).
+      if options[:strict] && spec.report.todos?
+        warn "\e[31m--strict:\e[0m #{spec.report.todos.size} поле(й) требуют ручного заполнения — сборка не считается завершённой"
+        return 1
+      end
+      0
     end
 
     def print_summary(spec)
