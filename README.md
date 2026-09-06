@@ -74,9 +74,16 @@ ruby exe/integrate --spec https://example.com/provider_api.yaml --provider novap
 SSRF: локальные и служебные IP по умолчанию запрещены. Для изолированной локальной
 разработки их можно явно разрешить через `PAYBRIDGE_ALLOW_PRIVATE_SPEC_URLS=1`.
 
-Результат — пять файлов в `./output/`: три основных артефакта
-(`<provider>_service.rb`, `INTEGRATION.md`, `fixtures.json`) и два проверочных
-(`<provider>_service_spec.rb`, `base_service.rb`).
+Результат — семь файлов в `./output/`:
+- `<provider>_service.rb` — сервис по контракту `Provider::BaseService`;
+- `INTEGRATION.md` — инструкция по подключению;
+- `fixtures.json` — примеры запросов/ответов/уведомлений (контракт v3);
+- `<provider>_service_spec.rb` — исполняемый тест;
+- `<provider>_mapping.yml` — **«что инструмент понял»**: роли, авторизация,
+  единица суммы, маппинги, поля для ручного заполнения и провенанс (sha256
+  спеки) — главный файл для проверки глазами;
+- `<provider>.postman_collection.json` — импортируемая коллекция Postman;
+- `base_service.rb` — платформенный каркас (чтобы сервис запускался).
 
 Уточнения того, что нельзя достать из структуры OpenAPI (единица суммы, кодировка подписи,
 условная обязательность полей) — через опциональный overrides-файл; чего в нём нет, ядро
@@ -111,6 +118,31 @@ ruby exe/integrate verify --dir output
   OK   callback.completed
   ...
   7 passed, 0 failed
+```
+
+## Детерминизм (diff)
+
+`diff` перегенерирует интеграцию в память и сверяет **байт-в-байт** с уже
+сгенерированным каталогом. Ненулевой код при расхождении — детерминизм в CI без
+внешних инструментов (генерация выводит LF на всех платформах).
+
+```bash
+ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --output output
+ruby exe/integrate diff --spec examples/provider_api.yaml --provider novapay --dir output
+# diff: без изменений — генерация детерминирована и совпадает с output
+```
+
+`--strict` при генерации завершает работу ненулевым кодом, если остались поля для
+ручного заполнения (см. `<provider>_mapping.yml`).
+
+## Docker
+
+Ядро-генератор использует только stdlib — образ минимальный, без bundle:
+
+```bash
+docker build -t paybridge .
+docker run --rm -v "$PWD:/work" paybridge \
+  --spec /work/examples/provider_api.yaml --provider novapay --output /work/output
 ```
 
 ## Линт спецификации (Python-модуль)

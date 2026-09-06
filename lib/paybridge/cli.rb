@@ -15,6 +15,7 @@ module Paybridge
       return verify(argv[1..]) if argv.first == 'verify'
       return validate(argv[1..]) if argv.first == 'validate'
       return lint_cmd(argv[1..]) if argv.first == 'lint'
+      return diff_cmd(argv[1..]) if argv.first == 'diff'
 
       options = parse_options(argv)
       run(options)
@@ -146,6 +147,48 @@ module Paybridge
       1
     end
 
+    # integrate diff --spec provider_api.yaml --provider novapay --dir output/
+    # Перегенерирует в память и сверяет байт-в-байт с уже сгенерированным каталогом.
+    # Ненулевой код при расхождении — детерминизм в CI без внешних инструментов.
+    def diff_cmd(argv)
+      opts = { dir: './output', config: Paybridge::DEFAULT_CONFIG }
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate diff --spec <file|url> --provider <name> --dir <output>'
+        o.on('--spec PATH') { |v| opts[:spec] = v }
+        o.on('--provider NAME') { |v| opts[:provider] = v }
+        o.on('--dir DIR', 'Каталог ранее сгенерированной интеграции') { |v| opts[:dir] = v }
+        o.on('--overrides PATH') { |v| opts[:overrides] = v }
+        o.on('--config PATH') { |v| opts[:config] = v }
+      end.parse!(argv)
+      abort 'Не указан --spec' unless opts[:spec]
+      abort 'Не указан --provider' unless opts[:provider]
+
+      gen = Paybridge.generate(
+        spec_path: opts[:spec], provider: opts[:provider],
+        config_path: opts[:config], overrides_path: opts[:overrides]
+      )
+
+      drift = gen.files.filter_map do |name, body|
+        path = File.join(opts[:dir], name)
+        next "\e[33m+ #{name}\e[0m (отсутствует в #{opts[:dir]})" unless File.file?(path)
+        next "\e[31m~ #{name}\e[0m (отличается)" if File.binread(path) != body.b
+
+        nil
+      end
+
+      if drift.empty?
+        puts "\e[32mdiff: без изменений\e[0m — генерация детерминирована и совпадает с #{opts[:dir]}"
+        0
+      else
+        drift.each { |line| puts "  #{line}" }
+        puts "diff: расхождений — #{drift.size}. Перегенерируйте (`integrate --spec … --provider …`)."
+        1
+      end
+    rescue Paybridge::GenerationError => e
+      warn "\e[31mОшибка генерации:\e[0m #{e.message}"
+      1
+    end
+
     def parse_options(argv)
       options = { output: './output', lang: 'ruby', config: Paybridge::DEFAULT_CONFIG }
       parser = OptionParser.new do |o|
@@ -194,7 +237,9 @@ module Paybridge
       generators.each do |label, generator|
         say "Generating #{label}..."
         path = File.join(options[:output], generator.filename)
-        File.write(path, generator.render)
+        # binwrite: байт-в-байт (LF), без CRLF-трансляции на Windows — вывод
+        # детерминирован на всех платформах и сходится с `integrate diff`/golden.
+        File.binwrite(path, generator.render)
         written << path
       end
 
