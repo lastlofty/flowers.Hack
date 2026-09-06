@@ -18,6 +18,7 @@ providers = [
 real = {
   'yookassa' => 'examples/real/yookassa.yaml',
   'adyen'    => 'examples/real/adyen_checkout.yaml',
+  'klarna'   => 'examples/real/klarna_payments.yaml',
   'stripe'   => 'examples/real/stripe.yaml'
 }
 real.each { |provider, spec| providers << { spec: spec, provider: provider } if File.exist?(spec) }

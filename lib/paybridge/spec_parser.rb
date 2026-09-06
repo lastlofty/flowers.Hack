@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require 'date'
 require 'digest'
 require 'ipaddr'
 require 'net/http'
@@ -113,12 +114,17 @@ module Paybridge
 
     private
 
+    # Реальные спеки часто содержат example с датой/временем без кавычек
+    # (напр. Klarna: 2038-01-19T03:14:07Z). Date/Time — безопасные value-классы,
+    # разрешаем их. Опасные классы (!ruby/object и т.п.) по-прежнему запрещены.
+    YAML_PERMITTED = [Date, Time].freeze
+
     def load_yaml
       content = read_spec_source
       @spec_sha256 = Digest::SHA256.hexdigest(content)
-      YAML.safe_load(content, aliases: true)
+      YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
     rescue Psych::Exception, EncodingError, ArgumentError => e
-      # Psych: SyntaxError/DisallowedClass (!ruby/object, дата, символ)/BadAlias;
+      # Psych: SyntaxError/DisallowedClass (!ruby/object, символ)/BadAlias;
       # Encoding/Argument: невалидные байты (не-UTF-8 вход от байтового фаззера).
       raise ParseError, "Некорректный YAML: #{e.message}"
     end

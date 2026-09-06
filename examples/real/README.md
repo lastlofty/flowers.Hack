@@ -11,6 +11,7 @@
 |-------|-------:|--------:|-------------|:---------:|:----------:|:-------:|:--------:|
 | **ЮKassa** (YooMoney API) | 338 КБ | 34 | HTTP Basic | ✅ | **3 passed** / 1 skip | 0 | 25 |
 | **Adyen** Checkout v71 | 822 КБ | 28 | HTTP Basic¹ | ✅ | **3 passed** / 1 skip | 3 | 5 |
+| **Klarna** Payments v1 | 59 КБ | — | HTTP Bearer | ✅ | **3 passed** / 1 skip | 4 | — |
 | **Stripe** (v2026-08-26) | 6.4 МБ | 594 | HTTP Bearer | ✅ | 1 passed / 1 skip | 0 | 17 |
 
 > `verify` skip у всех троих — только callback: подпись webhook не описана
@@ -46,6 +47,19 @@
   вывести из модели операции → помечены **«заполнить вручную»** с TODO-маркером
   в коде и подсказкой. Это ровно наша фича «честные границы + что делать дальше»,
   показанная на боевом провайдере.
+
+## Klarna (Payments API v1)
+
+- Официальная спека (зеркало apis.guru), OpenAPI 3.0.
+- Верно определены create `POST /payments/v1/sessions` и status
+  `GET /payments/v1/sessions/{session_id}` — **verify 3 passed**. Авторизация
+  HTTP Bearer.
+- Вскрыл реальный баг устойчивости: спека содержит `example` с датой/временем
+  без кавычек (`2038-01-19T03:14:07Z`) → `YAML.safe_load` ронял `Time`.
+  **Починили**: Date/Time разрешены как безопасные value-классы (опасные
+  `!ruby/object` по-прежнему запрещены). Теперь такие спеки грузятся.
+- 4 обязательных поля (`order_amount`, `order_lines`, `purchase_country`,
+  `purchase_currency`) → «заполнить вручную» с подсказками.
 
 ## Stripe
 

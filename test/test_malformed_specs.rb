@@ -133,9 +133,14 @@ class TestMalformedSpecs < Minitest::Test
     assert_ge_raw("--- !ruby/object:Foo {}\n", '!ruby/object')
   end
 
-  def test_yaml_unquoted_date_is_disallowed_class
-    # Psych разбирает 2020-01-01 в Date, которого нет в permitted_classes -> DisallowedClass
-    assert_ge_raw("openapi: 3.0.3\ninfo: { title: T, version: '1', released: 2020-01-01 }\npaths: {}\n", 'unquoted date')
+  def test_yaml_unquoted_date_is_tolerated
+    # Реальные спеки содержат example с датой/временем без кавычек. Date/Time —
+    # безопасные value-классы: спека должна ГРУЗИТЬСЯ, а не падать (регрессия Klarna).
+    yaml = "openapi: 3.0.3\ninfo: { title: T, version: '1', released: 2020-01-01 }\npaths: {}\n"
+    generate_raw(yaml)
+  rescue Paybridge::GenerationError => e
+    # допустимо, если причина — отсутствие эндпоинтов, но НЕ DisallowedClass по дате
+    refute_match(/Date|Time|DisallowedClass/, e.message, 'дата не должна отвергаться')
   end
 
   def test_random_bytes_not_yaml
