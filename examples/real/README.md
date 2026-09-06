@@ -10,7 +10,7 @@
 | Спека | Размер | Методов | Авторизация | `ruby -c` | **verify** | Вручную | Предупр. |
 |-------|-------:|--------:|-------------|:---------:|:----------:|:-------:|:--------:|
 | **ЮKassa** (YooMoney API) | 338 КБ | 34 | HTTP Basic | ✅ | **3 passed** / 1 skip | 0 | 25 |
-| **Adyen** Checkout v71 | 822 КБ | 28 | apiKey (X-API-Key) | ✅ | **3 passed** / 1 skip | 3 | 5 |
+| **Adyen** Checkout v71 | 822 КБ | 28 | HTTP Basic¹ | ✅ | **3 passed** / 1 skip | 3 | 5 |
 | **Stripe** (v2026-08-26) | 6.4 МБ | 594 | HTTP Bearer | ✅ | 1 passed / 1 skip | 0 | 17 |
 
 > `verify` skip у всех троих — только callback: подпись webhook не описана
@@ -31,10 +31,18 @@
 
 ## Adyen (Checkout API v71)
 
-- Официальная спека из репозитория Adyen (`Adyen/adyen-openapi`), OpenAPI 3.1.
-- Верно определены create `POST /payments` и status-запрос; авторизация
-  `apiKey` (`X-API-Key`) сгенерирована корректно — **verify 3 passed**.
-- 3 обязательных поля (`merchantAccount`, `reference`, `returnUrl` …) невозможно
+- Официальная спека из репозитория Adyen (`Adyen/adyen-openapi`), OpenAPI 3.1,
+  28 методов.
+- Из 16 POST-методов create верно выбран `POST /payments` — благодаря
+  ранжированию кандидатов по «платёжности» (иначе «первый попавшийся» дал бы
+  `/applePay/sessions`). **verify 3 passed** (create/status/auth).
+- ¹ Авторизация: Adyen поддерживает и `X-API-Key`, и HTTP Basic; в security
+  `/payments` первым идёт Basic — его и генерируем (`Authorization: Basic …`).
+  Хочешь X-API-Key — это выбор схемы, решается overrides/приоритетом (roadmap).
+- `amount` — вложенный объект `{value, currency}`; currency без enum →
+  `operation.currency` (нашёлся баг: verify-заглушка операции не несла currency —
+  **починили**, теперь контракт операции включает валюту).
+- 3 обязательных поля (`merchantAccount`, `paymentMethod`, `returnUrl`) невозможно
   вывести из модели операции → помечены **«заполнить вручную»** с TODO-маркером
   в коде и подсказкой. Это ровно наша фича «честные границы + что делать дальше»,
   показанная на боевом провайдере.

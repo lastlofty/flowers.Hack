@@ -75,8 +75,8 @@ module Paybridge
     end
 
     FakeProvider = Struct.new(:credentials)
-    FakeOperation = Struct.new(:amount, :id, :payout_requisite, :provider_operation_id, :idempotency_key,
-                               keyword_init: true)
+    FakeOperation = Struct.new(:amount, :currency, :id, :payout_requisite, :provider_operation_id,
+                               :idempotency_key, keyword_init: true)
 
     def initialize(dir)
       @dir = File.expand_path(dir)
@@ -320,6 +320,7 @@ module Paybridge
       if input.is_a?(Hash)
         return FakeOperation.new(
           amount: input['amount'] || operation.amount,
+          currency: input['currency'] || operation.currency,
           id: input['id'] || operation.id,
           payout_requisite: fake_requisite.merge(input['payout_requisite'] || {}),
           provider_operation_id: input['provider_operation_id'] || operation.provider_operation_id,
@@ -332,6 +333,7 @@ module Paybridge
       amount /= 100.0 if minor_units_documented?
       FakeOperation.new(
         amount: amount,
+        currency: request['currency'] || operation.currency,
         id: request['external_id'] || request['reference'] || request['order_id'] || operation.id,
         payout_requisite: requisite_from(request['recipient']),
         provider_operation_id: operation.provider_operation_id,
@@ -404,7 +406,8 @@ module Paybridge
     end
 
     def operation
-      @operation ||= FakeOperation.new(amount: 15_000, id: 'op_test', payout_requisite: fake_requisite,
+      @operation ||= FakeOperation.new(amount: 15_000, currency: 'RUB', id: 'op_test',
+                                       payout_requisite: fake_requisite,
                                        provider_operation_id: 'op_prov', idempotency_key: 'idem_1')
     end
 

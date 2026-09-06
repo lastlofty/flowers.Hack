@@ -61,8 +61,8 @@ module Paybridge
       warn_ambiguous_endpoints('создания операции', create_candidates)
       warn_ambiguous_endpoints('статус-запроса', status_candidates)
 
-      create    = create_candidates.first
-      status    = status_candidates.first
+      create    = pick_create(create_candidates)
+      status    = pick_status(status_candidates, create)
       cancel    = endpoints.find { |e| e.role == :cancel }
       webhook_e = endpoints.find { |e| e.role == :webhook }
 
@@ -277,6 +277,44 @@ module Paybridge
       return :create  if http_method == 'post' && !path.match?(/\{[^}]+\}/)
 
       :other
+    end
+
+    # На больших спеках POST-методов много (Adyen, Stripe): «первый попавшийся»
+    # берёт не тот (напр. /applePay/sessions). Ранжируем кандидатов по «похожести
+    # на создание платежа/выплаты»; при равенстве — порядок из спеки (stable).
+    PAY_HINT = /pay(ment|out)?s?\b|charg|transfer|deposit|withdraw|invoice|\bsale/i
+    NON_PAY_HINT = /session|method|token|detail|3ds|apple|google|\blink|report|
+                    balance|refund|capture|dispute|config|setting|test|schedule/xi
+
+    def pick_create(candidates)
+      pick_ranked(candidates)
+    end
+
+    # Статус-метод: сначала GET {id} на ресурсе создания (общий префикс пути —
+    # напр. /payments + /payments/{id}), иначе — ранжирование по платёжности.
+    def pick_status(candidates, create)
+      if create
+        stem = create.path[%r{\A/[^/\{]+}o] # первый сегмент пути создания
+        same = stem && candidates.find { |e| e.path.start_with?("#{stem}/") }
+        return same if same
+      end
+      pick_ranked(candidates)
+    end
+
+    def pick_ranked(candidates)
+      return candidates.first if candidates.size <= 1
+
+      candidates.each_with_index.max_by do |endpoint, index|
+        [endpoint_pay_score(endpoint), -index] # выше счёт, затем ранний порядок
+      end&.first
+    end
+
+    def endpoint_pay_score(endpoint)
+      text = "#{endpoint.path} #{endpoint.operation_id}"
+      score = 0
+      score += 3 if text.match?(PAY_HINT)
+      score -= 3 if text.match?(NON_PAY_HINT)
+      score
     end
 
     def params_in(op, location)
