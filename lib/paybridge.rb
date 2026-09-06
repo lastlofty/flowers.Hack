@@ -23,6 +23,7 @@ require_relative 'paybridge/cli'
 #   * веб-бэкенд     — app/api.rb     (Paybridge.generate)
 #   * тесты          — test/*
 module Paybridge
+  VERSION        = '1.0.0'
   ROOT           = File.expand_path('..', __dir__)
   DEFAULT_CONFIG = File.join(ROOT, 'config', 'mapping.yml')
   PROVIDER_RE    = /\A[a-z][a-z0-9_]{1,32}\z/.freeze

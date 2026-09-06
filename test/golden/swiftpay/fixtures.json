@@ -1,0 +1,36 @@
+{
+  "contract_version": 2,
+  "provider": "swiftpay",
+  "base_url": "https://sandbox.swiftpay.example/v1",
+  "auth": {
+    "type": "http",
+    "location": null,
+    "header": "Authorization",
+    "credentials_field": "token"
+  },
+  "create_request": {
+    "endpoint": "POST /payments",
+    "response_201": {
+      "id": "sp_001",
+      "status": "pending"
+    },
+    "expected_201": {
+      "status": "success",
+      "provider_operation_id": "sp_001",
+      "operation_status": "in_progress"
+    },
+    "source_201": "openapi"
+  },
+  "fetch_status": {
+    "endpoint": "GET /payments/{payment_id}",
+    "response_200": {
+      "id": "op_sample",
+      "status": "completed"
+    },
+    "expected_200": {
+      "status": "success",
+      "operation_status": "approved"
+    },
+    "source_200": "synthetic"
+  }
+}

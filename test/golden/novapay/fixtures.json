@@ -1,0 +1,199 @@
+{
+  "contract_version": 2,
+  "provider": "novapay",
+  "base_url": "https://api.sandbox.novapay.example/v1",
+  "auth": {
+    "type": "apiKey",
+    "location": "header",
+    "header": "X-API-Key",
+    "credentials_field": "api_key"
+  },
+  "create_request": {
+    "endpoint": "POST /payouts",
+    "idempotency_header": "Idempotency-Key",
+    "request": {
+      "amount": 1500000,
+      "currency": "RUB",
+      "external_id": "op_abc123",
+      "recipient": {
+        "type": "sbp",
+        "phone": "79001234567",
+        "bank_code": "044525225",
+        "bank_name": "Сбербанк"
+      }
+    },
+    "request_source": "openapi",
+    "operation": {
+      "amount": 15000.0,
+      "id": "op_abc123",
+      "payout_requisite": {
+        "sbp": {
+          "phone": "79001234567",
+          "bank_code": "044525225",
+          "bank_name": "Сбербанк"
+        }
+      },
+      "provider_operation_id": "op_prov",
+      "idempotency_key": "idem_1"
+    },
+    "response_201": {
+      "id": "np_7f3a9b2c",
+      "external_id": "op_abc123",
+      "status": "pending",
+      "amount": 1500000,
+      "currency": "RUB",
+      "created_at": "2026-07-30T10:00:00Z"
+    },
+    "expected_201": {
+      "status": "success",
+      "provider_operation_id": "np_7f3a9b2c",
+      "operation_status": "in_progress"
+    },
+    "source_201": "openapi",
+    "response_401": {
+      "error": {
+        "code": "unauthorized",
+        "message": "Invalid API key"
+      }
+    },
+    "expected_401": {
+      "status": "failed",
+      "provider_code": "unauthorized",
+      "internal_code": "invalid_credentials"
+    },
+    "source_401": "openapi",
+    "response_402": {
+      "error": {
+        "code": "insufficient_balance",
+        "message": "Insufficient provider balance"
+      }
+    },
+    "expected_402": {
+      "status": "failed",
+      "provider_code": "insufficient_balance",
+      "internal_code": "insufficient_balance"
+    },
+    "source_402": "openapi",
+    "response_422": {
+      "error": {
+        "code": "validation_error",
+        "message": "Amount must be at least 100000 kopecks",
+        "details": [
+          {
+            "field": "amount",
+            "message": "minimum is 100000"
+          }
+        ]
+      }
+    },
+    "expected_422": {
+      "status": "failed",
+      "provider_code": "validation_error",
+      "internal_code": "validation_error"
+    },
+    "source_422": "openapi",
+    "response_429": {
+      "error": {
+        "code": "rate_limit_exceeded",
+        "message": "Rate limit exceeded, retry after 60 seconds"
+      }
+    },
+    "expected_429": {
+      "status": "failed",
+      "provider_code": "rate_limit_exceeded",
+      "internal_code": "rate_limit"
+    },
+    "source_429": "openapi",
+    "response_409_idempotent": {
+      "id": "op_duplicate",
+      "status": "pending"
+    },
+    "expected_409_idempotent": {
+      "status": "success",
+      "provider_operation_id": "op_duplicate",
+      "operation_status": "in_progress"
+    },
+    "source_409_idempotent": "synthetic",
+    "response_409_conflict": {
+      "error": {
+        "code": "conflict",
+        "message": "ordinary conflict"
+      }
+    },
+    "expected_409_conflict": {
+      "status": "failed",
+      "provider_code": "conflict",
+      "internal_code": "duplicate"
+    },
+    "source_409_conflict": "synthetic"
+  },
+  "fetch_status": {
+    "endpoint": "GET /payouts/{payout_id}",
+    "response_401": {
+      "error": {
+        "code": "unauthorized",
+        "message": "Invalid API key"
+      }
+    },
+    "expected_401": {
+      "status": "failed",
+      "provider_code": "unauthorized",
+      "internal_code": "invalid_credentials"
+    },
+    "source_401": "openapi",
+    "response_404": {
+      "error": {
+        "code": "not_found",
+        "message": "Payout not found"
+      }
+    },
+    "expected_404": {
+      "status": "failed",
+      "provider_code": "not_found",
+      "internal_code": "not_found"
+    },
+    "source_404": "openapi",
+    "response_200": {
+      "id": "op_sample",
+      "status": "completed"
+    },
+    "expected_200": {
+      "status": "success",
+      "operation_status": "approved"
+    },
+    "source_200": "synthetic"
+  },
+  "callback": {
+    "endpoint": "POST /webhooks/payout",
+    "signature_header": "X-NovaPay-Signature",
+    "signature_alg": "SHA256",
+    "signature_encoding": "hex",
+    "completed": {
+      "payload": {
+        "event": "payout.completed",
+        "payout_id": "np_7f3a9b2c",
+        "external_id": "op_abc123",
+        "status": "completed",
+        "completed_at": "2026-07-30T10:05:00Z"
+      },
+      "raw_body": "{\n  \"event\": \"payout.completed\",\n  \"payout_id\": \"np_7f3a9b2c\",\n  \"external_id\": \"op_abc123\",\n  \"status\": \"completed\",\n  \"completed_at\": \"2026-07-30T10:05:00Z\"\n}",
+      "source": "openapi",
+      "expected_operation_status": "approved"
+    },
+    "failed": {
+      "payload": {
+        "event": "payout.failed",
+        "payout_id": "np_7f3a9b2c",
+        "external_id": "op_abc123",
+        "status": "failed",
+        "error": {
+          "code": "recipient_not_found",
+          "message": "Recipient account not found"
+        }
+      },
+      "raw_body": "{\n  \"event\": \"payout.failed\",\n  \"payout_id\": \"np_7f3a9b2c\",\n  \"external_id\": \"op_abc123\",\n  \"status\": \"failed\",\n  \"error\": {\n    \"code\": \"recipient_not_found\",\n    \"message\": \"Recipient account not found\"\n  }\n}",
+      "source": "openapi",
+      "expected_operation_status": "rejected"
+    }
+  }
+}

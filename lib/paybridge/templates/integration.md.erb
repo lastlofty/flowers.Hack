@@ -1,7 +1,8 @@
 # <%= spec.title %> Integration Guide
 
-> Сгенерировано PayBridge из `<%= File.basename(spec_source) %>` (<%= spec.title %> v<%= spec.version %>).
+> Сгенерировано PayBridge <%= Paybridge::VERSION %> из `<%= File.basename(spec_source) %>` (<%= spec.title %> v<%= spec.version %>).
 > Сервис: `Provider::<%= spec.provider_class %> < Provider::BaseService`.
+> spec sha256: `<%= spec.spec_sha256 %>`
 <% if spec.auth -%>
 
 ## Авторизация

@@ -1,0 +1,103 @@
+{
+  "contract_version": 2,
+  "provider": "bluepay",
+  "base_url": "https://sandbox.bluepay.example/api",
+  "auth": {
+    "type": "apiKey",
+    "location": "header",
+    "header": "X-Api-Token",
+    "credentials_field": "api_key"
+  },
+  "create_request": {
+    "endpoint": "POST /transfers",
+    "request": {
+      "amount": 500,
+      "currency": "USD",
+      "reference": "ref_777",
+      "recipient": {
+        "type": "card",
+        "card_number": "4111111111111111",
+        "holder_name": "IVAN PETROV"
+      }
+    },
+    "request_source": "openapi",
+    "operation": {
+      "amount": 5.0,
+      "id": "ref_777",
+      "payout_requisite": {
+        "card": {
+          "card_number": "4111111111111111",
+          "holder_name": "IVAN PETROV"
+        }
+      },
+      "provider_operation_id": "op_prov",
+      "idempotency_key": "idem_1"
+    },
+    "response_201": {
+      "id": "bp_5510aa",
+      "reference": "ref_777",
+      "status": "created",
+      "amount": 500,
+      "currency": "USD"
+    },
+    "expected_201": {
+      "status": "success",
+      "provider_operation_id": "bp_5510aa",
+      "operation_status": "in_progress"
+    },
+    "source_201": "openapi",
+    "response_422": {
+      "error": {
+        "code": "validation_error",
+        "message": "amount below minimum"
+      }
+    },
+    "expected_422": {
+      "status": "failed",
+      "provider_code": "validation_error",
+      "internal_code": "validation_error"
+    },
+    "source_422": "openapi"
+  },
+  "fetch_status": {
+    "endpoint": "GET /transfers/{transfer_id}",
+    "response_200": {
+      "id": "op_sample",
+      "status": "done"
+    },
+    "expected_200": {
+      "status": "success",
+      "operation_status": "approved"
+    },
+    "source_200": "synthetic"
+  },
+  "callback": {
+    "endpoint": "POST /hooks/transfer",
+    "signature_header": "X-BluePay-Signature",
+    "signature_alg": "SHA512",
+    "signature_encoding": "hex",
+    "done": {
+      "payload": {
+        "event": "transfer.done",
+        "transfer_id": "bp_5510aa",
+        "status": "done"
+      },
+      "raw_body": "{\n  \"event\": \"transfer.done\",\n  \"transfer_id\": \"bp_5510aa\",\n  \"status\": \"done\"\n}",
+      "source": "openapi",
+      "expected_operation_status": "approved"
+    },
+    "failed": {
+      "payload": {
+        "event": "transfer.failed",
+        "transfer_id": "bp_5510aa",
+        "status": "failed",
+        "error": {
+          "code": "card_declined"
+        }
+      },
+      "raw_body": "{\n  \"event\": \"transfer.failed\",\n  \"transfer_id\": \"bp_5510aa\",\n  \"status\": \"failed\",\n  \"error\": {\n    \"code\": \"card_declined\"\n  }\n}",
+      "source": "openapi",
+      "expected_operation_status": "rejected"
+    }
+  }
+}

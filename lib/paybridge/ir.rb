@@ -53,6 +53,7 @@ module Paybridge
       :recipient_spec,       # { field:, methods: {sbp: {fields, required}, ...} } или nil
       :request_payload_ruby, # готовый Ruby-литерал тела запроса (строка)
       :request_examples, :response_examples, :webhook_examples,
+      :spec_sha256,          # sha256 исходной спеки (provenance/детерминизм)
       :report,
       keyword_init: true
     )

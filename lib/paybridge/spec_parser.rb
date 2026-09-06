@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require 'digest'
 require 'ipaddr'
 require 'net/http'
 require 'openssl'
@@ -100,6 +101,7 @@ module Paybridge
         request_examples: request_examples(create),
         response_examples: response_examples(create, status),
         webhook_examples: webhook_examples(webhook_e),
+        spec_sha256: @spec_sha256,
         report: @report
       )
     end
@@ -107,7 +109,9 @@ module Paybridge
     private
 
     def load_yaml
-      YAML.safe_load(read_spec_source, aliases: true)
+      content = read_spec_source
+      @spec_sha256 = Digest::SHA256.hexdigest(content)
+      YAML.safe_load(content, aliases: true)
     rescue Psych::Exception, EncodingError, ArgumentError => e
       # Psych: SyntaxError/DisallowedClass (!ruby/object, дата, символ)/BadAlias;
       # Encoding/Argument: невалидные байты (не-UTF-8 вход от байтового фаззера).

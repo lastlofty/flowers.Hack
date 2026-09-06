@@ -1,0 +1,3 @@
+# Эталонный вывод сравнивается байт-в-байт — фиксируем LF на всех платформах,
+# иначе autocrlf на Windows сломает test_golden.
+test/golden/** text eol=lf

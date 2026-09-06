@@ -2,65 +2,73 @@
 
 require 'openssl'
 require 'json'
-<% if needs_base64? -%>
-require 'base64'
-<% end -%>
-<% if auth_in_query? -%>
-require 'cgi'
-<% end -%>
 
 # ────────────────────────────────────────────────────────────────────────
-# СГЕНЕРИРОВАНО PayBridge <%= Paybridge::VERSION %> из <%= Safe.comment(File.basename(spec_source)) %>
-# Провайдер: <%= spec.provider_name %> (<%= Safe.comment(spec.title) %> v<%= Safe.comment(spec.version) %>)
-# spec sha256: <%= spec.spec_sha256 %>
+# СГЕНЕРИРОВАНО PayBridge 1.0.0 из provider_api.yaml
+# Провайдер: novapay (NovaPay Payout API v1.0.0)
+# spec sha256: 415f50ee36fb331dfab49ceed0e8ed3b0ebe16053d7e00dbabd32282f4396551
 # Не редактировать вручную — вывод детерминирован по спеке; изменения перезапишутся.
 # ────────────────────────────────────────────────────────────────────────
 module Provider
-  class <%= spec.provider_class %> < BaseService
-    BASE_URL = ENV.fetch(<%= Safe.rb(spec.base_url_env) %>, <%= Safe.rb(spec.base_url) %>)
-<% if min_amount -%>
-    MIN_AMOUNT = <%= min_amount %>
-<% end -%>
+  class NovapayService < BaseService
+    BASE_URL = ENV.fetch('NOVAPAY_BASE_URL', 'https://api.sandbox.novapay.example/v1')
+    MIN_AMOUNT = 100000
 
-<%= render_status_map %>
+    STATUS_MAP = {
+      'pending' => 'in_progress',
+      'processing' => 'in_progress',
+      'completed' => 'approved',
+      'failed' => 'rejected',
+      'cancelled' => 'rejected'
+    }.freeze
 
-<%= render_error_map %>
+    ERROR_MAP = {
+      400 => 'validation_error',
+      401 => 'invalid_credentials',
+      402 => 'insufficient_balance',
+      404 => 'not_found',
+      409 => 'duplicate',
+      422 => 'validation_error',
+      429 => 'rate_limit',
+      500 => 'internal_error'
+    }.freeze
 
-<%= render_symbol_map %>
-<% if recipient_spec? -%>
+    HTTP_STATUS_SYMBOL = {
+      400 => :bad_request,
+      401 => :unauthorized,
+      402 => :payment_required,
+      404 => :not_found,
+      409 => :conflict,
+      422 => :unprocessable_entity,
+      429 => :too_many_requests,
+      500 => :internal_server_error
+    }.freeze
 
-    PAYOUT_METHODS = <%= payout_methods_literal %>.freeze
-    REQUIRED_REQUISITE = <%= required_requisite_literal %>
-<% end -%>
+    PAYOUT_METHODS = %w[sbp card].freeze
+    REQUIRED_REQUISITE = {
+      'sbp' => %w[phone bank_code],
+      'card' => %w[phone card_number]
+    }.freeze
 
     def check_conditions(operation, request_method)
       base_result = super
       return base_result if base_result.failed?
-<% if min_amount -%>
-      return failure(:unprocessable_entity, 'amount_too_low') if <%= amount_too_low_condition %>
-<% end -%>
-<% if recipient_spec? -%>
+      return failure(:unprocessable_entity, 'amount_too_low') if (operation.amount * 100).round < MIN_AMOUNT
       method = payout_method(operation, request_method)
       REQUIRED_REQUISITE.fetch(method, []).each do |field|
         if (operation.payout_requisite || {}).dig(method, field).nil?
           return failure(:unprocessable_entity, 'missing_requisite', data: { field: field, method: method })
         end
       end
-<% end -%>
-<% (spec.required_requisite || []).each do |group, field| -%>
-      if operation.payout_requisite.nil? || operation.payout_requisite.dig(<%= Safe.rb(group) %>, <%= Safe.rb(field) %>).nil?
-        return failure(:unprocessable_entity, 'missing_requisite', data: { field: <%= Safe.rb(field) %> })
-      end
-<% end -%>
       success
     end
 
     def create_request(operation, request_method = 'create')
       payload  = build_request_payload(operation, request_method)
       response = client.post(
-        "#{BASE_URL}<%= spec.create_endpoint.path %><%= auth_query %>",
+        "#{BASE_URL}/payouts",
         json: payload,
-        headers: <%= create_headers %>
+        headers: auth_headers.merge('Idempotency-Key' => idempotency_key(operation))
       )
       parse_create_response(operation, response)
     rescue Provider::RateLimitError
@@ -68,11 +76,10 @@ module Provider
     rescue Provider::UnauthorizedError
       failure(:unauthorized, 'provider.invalid_credentials')
     end
-<% if spec.status_endpoint -%>
 
     def fetch_status(operation)
       response = client.get(
-        "#{BASE_URL}<%= status_path_ruby %><%= auth_query %>",
+        "#{BASE_URL}/payouts/#{operation.provider_operation_id}",
         headers: auth_headers
       )
       return map_error(response) if response.status >= 400
@@ -82,47 +89,34 @@ module Provider
 
       success(status: mapped)
     end
-<% end -%>
-<% if spec.webhook -%>
 
     def process_callback(raw_body, signature = nil, _headers = {})
       payload = JSON.parse(raw_body)
-<% if spec.webhook.signature_header -%>
       verify_signature!(raw_body, signature)
-<% else -%>
-      # ВНИМАНИЕ: спецификация не описывает подпись webhook — проверка НЕ выполняется.
-      # Настройте верификацию подписи вручную перед боевым использованием.
-<% end -%>
 
-<% if approve_events.empty? && reject_events.empty? -%>
-      # спецификация не даёт распознаваемых событий — все считаем неизвестными
-      failure(:unprocessable_entity, 'unknown_event')
-<% else -%>
       case payload['event']
-<% unless approve_events.empty? -%>
-      when <%= approve_events.map { |e| Safe.rb(e) }.join(', ') %>
-        approve_operation(payload[<%= Safe.rb(spec.webhook.id_field) %>], map_status(payload['status']))
-<% end -%>
-<% unless reject_events.empty? -%>
-      when <%= reject_events.map { |e| Safe.rb(e) }.join(', ') %>
-        reject_operation(payload[<%= Safe.rb(spec.webhook.id_field) %>], payload.dig('error', 'code'))
-<% end -%>
+      when 'payout.completed', 'payout.processing'
+        approve_operation(payload['payout_id'], map_status(payload['status']))
+      when 'payout.failed', 'payout.cancelled'
+        reject_operation(payload['payout_id'], payload.dig('error', 'code'))
       else
         failure(:unprocessable_entity, 'unknown_event')
       end
-<% end -%>
     rescue JSON::ParserError, TypeError
       failure(:unprocessable_entity, 'invalid_json')
     end
-<% end -%>
 
     private
 
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
-      <%= spec.request_payload_ruby %>
+      {
+        amount: (operation.amount * 100).to_i,
+        currency: 'RUB',
+        external_id: operation.id.to_s,
+        recipient: build_recipient(operation, requisite, request_method)
+      }
     end
-<% if recipient_spec? -%>
 
     # Способ выплаты: явный request_method, иначе по наличию реквизитов, иначе первый.
     def payout_method(operation, request_method)
@@ -134,19 +128,17 @@ module Provider
 
     def build_recipient(operation, requisite, request_method)
       case payout_method(operation, request_method)
-<% payout_methods.each do |method, info| -%>
-      when <%= Safe.rb(method) %>
-        <%= recipient_branch(method, info) %>
-<% end -%>
+      when 'sbp'
+        { type: 'sbp', phone: requisite.dig('sbp', 'phone'), bank_code: requisite.dig('sbp', 'bank_code'), bank_name: requisite.dig('sbp', 'bank_name') }.compact
+      when 'card'
+        { type: 'card', phone: requisite.dig('card', 'phone'), bank_name: requisite.dig('card', 'bank_name'), card_number: requisite.dig('card', 'card_number') }.compact
       end
     end
-<% end -%>
 
     def parse_create_response(_operation, response)
       case response.status
-      when <%= create_success_codes %>
+      when 201
         parse_success_response(response)
-<% if idempotent_conflict? -%>
       when 409
         # 409 — успех только если провайдер вернул уже созданную операцию.
         body = response.body.is_a?(Hash) ? response.body : {}
@@ -155,7 +147,6 @@ module Provider
         else
           map_error(response)
         end
-<% end -%>
       else
         map_error(response)
       end
@@ -189,29 +180,16 @@ module Provider
     end
 
     def auth_headers
-<% if spec.auth.nil? -%>
-      {} # авторизация не требуется/не поддержана спецификацией
-<% elsif auth_in_query? -%>
-      {} # ключ передаётся в query-параметре
-<% else -%>
-      { <%= Safe.rb(spec.auth.header_name) %> => <%= spec.auth.header_value_ruby %> }
-<% end -%>
+      { 'X-API-Key' => provider.credentials.fetch('api_key') }
     end
-<% if spec.idempotency_header -%>
 
     def idempotency_key(operation)
       operation.idempotency_key || operation.id.to_s
     end
-<% end -%>
-<% if spec.webhook && spec.webhook.signature_header -%>
 
     def verify_signature!(raw_body, received)
-      secret   = provider.credentials.fetch(<%= Safe.rb(spec.webhook.callback_secret_field) %>)
-<% if spec.webhook.signature_encoding == 'base64' -%>
-      expected = Base64.strict_encode64(OpenSSL::HMAC.digest(<%= Safe.rb(spec.webhook.signature_alg) %>, secret, raw_body))
-<% else -%>
-      expected = OpenSSL::HMAC.hexdigest(<%= Safe.rb(spec.webhook.signature_alg) %>, secret, raw_body)
-<% end -%>
+      secret   = provider.credentials.fetch('callback_secret')
+      expected = OpenSSL::HMAC.hexdigest('SHA256', secret, raw_body)
 
       return if received && secure_compare(expected, received)
 
@@ -225,7 +203,6 @@ module Provider
     rescue StandardError
       false
     end
-<% end -%>
 
     def approve_operation(provider_operation_id, mapped_status)
       success(provider_operation_id: provider_operation_id, status: mapped_status || 'approved')

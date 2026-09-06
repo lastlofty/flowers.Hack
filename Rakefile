@@ -13,6 +13,11 @@ task :demo do
   ruby 'tools/demo.rb'
 end
 
+desc '(Пере)генерировать эталонный вывод (golden files) для test_golden'
+task :golden do
+  ruby 'tools/golden.rb'
+end
+
 desc 'Прогнать генератор на одном примере'
 task :gen, [:spec, :provider] do |_t, args|
   spec = args[:spec] || 'examples/provider_api.yaml'

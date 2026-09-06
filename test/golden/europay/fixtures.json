@@ -1,0 +1,101 @@
+{
+  "contract_version": 2,
+  "provider": "europay",
+  "base_url": "https://sandbox.europay.example/v3",
+  "auth": {
+    "type": "apiKey",
+    "location": "header",
+    "header": "X-Auth-Token",
+    "credentials_field": "api_key"
+  },
+  "create_request": {
+    "endpoint": "POST /payments",
+    "request": {
+      "amount": 250,
+      "currency": "EUR",
+      "order_id": "ord_9000",
+      "recipient": {
+        "type": "sepa",
+        "iban": "DE89370400440532013000",
+        "holder_name": "IVAN PETROV"
+      }
+    },
+    "request_source": "openapi",
+    "operation": {
+      "amount": 250,
+      "id": "ord_9000",
+      "payout_requisite": {
+        "sepa": {
+          "iban": "DE89370400440532013000",
+          "holder_name": "IVAN PETROV"
+        }
+      },
+      "provider_operation_id": "op_prov",
+      "idempotency_key": "idem_1"
+    },
+    "response_201": {
+      "id": "ep_777",
+      "order_id": "ord_9000",
+      "status": "authorized"
+    },
+    "expected_201": {
+      "status": "success",
+      "provider_operation_id": "ep_777",
+      "operation_status": "in_progress"
+    },
+    "source_201": "openapi",
+    "response_422": {
+      "error": {
+        "code": "invalid_iban",
+        "message": "IBAN failed checksum"
+      }
+    },
+    "expected_422": {
+      "status": "failed",
+      "provider_code": "invalid_iban",
+      "internal_code": "validation_error"
+    },
+    "source_422": "openapi"
+  },
+  "fetch_status": {
+    "endpoint": "GET /payments/{payment_id}",
+    "response_200": {
+      "id": "op_sample",
+      "status": "captured"
+    },
+    "expected_200": {
+      "status": "success",
+      "operation_status": "approved"
+    },
+    "source_200": "synthetic"
+  },
+  "callback": {
+    "endpoint": "POST /webhooks/payment",
+    "signature_header": "X-EuroPay-Signature",
+    "signature_alg": "SHA256",
+    "signature_encoding": "hex",
+    "captured": {
+      "payload": {
+        "event": "payment.captured",
+        "payment_id": "ep_777",
+        "status": "captured"
+      },
+      "raw_body": "{\n  \"event\": \"payment.captured\",\n  \"payment_id\": \"ep_777\",\n  \"status\": \"captured\"\n}",
+      "source": "openapi",
+      "expected_operation_status": "approved"
+    },
+    "declined": {
+      "payload": {
+        "event": "payment.declined",
+        "payment_id": "ep_777",
+        "status": "declined",
+        "error": {
+          "code": "insufficient_funds"
+        }
+      },
+      "raw_body": "{\n  \"event\": \"payment.declined\",\n  \"payment_id\": \"ep_777\",\n  \"status\": \"declined\",\n  \"error\": {\n    \"code\": \"insufficient_funds\"\n  }\n}",
+      "source": "openapi",
+      "expected_operation_status": "rejected"
+    }
+  }
+}
