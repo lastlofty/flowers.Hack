@@ -6,11 +6,21 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        ruby: ['3.2', '3.3']
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
+      # Python нужен для тестов линтера (tools/openapi_lint.py); на Windows
+      # проверяем кросс-платформенную кодировку вывода линтера.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - run: bundle exec rake test

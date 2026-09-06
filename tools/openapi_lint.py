@@ -153,11 +153,11 @@ def main():
         doc = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError) as exc:
         json.dump({"valid": False, "errors": [{"path": "#", "message": "невалидный JSON: %s" % exc}],
-                   "warnings": []}, sys.stdout, ensure_ascii=False)
+                   "warnings": []}, sys.stdout, ensure_ascii=True)
         return 2
 
     report = lint(doc)
-    json.dump(report.as_dict(), sys.stdout, ensure_ascii=False)
+    json.dump(report.as_dict(), sys.stdout, ensure_ascii=True)
     return 0 if report.as_dict()["valid"] else 1
 
 
