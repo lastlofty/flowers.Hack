@@ -81,7 +81,7 @@ class TestUniversality < Minitest::Test
       provider: 'bluepay'
     )
     assert_equal %w[bluepay_service.rb bluepay_service_spec.rb bluepay_mapping.yml
-                    bluepay.postman_collection.json INTEGRATION.md fixtures.json].sort,
+                    bluepay.postman_collection.json SAFETY.md INTEGRATION.md fixtures.json].sort,
                  generation.files.keys.sort
     # статусы/коды известны конфигу, но единицу суммы и кодировку подписи
     # OpenAPI не выражает — генератор честно помечает эти допущения

@@ -282,7 +282,8 @@ module Paybridge
         'test fixtures' => Generators::FixturesGenerator.new(spec, spec_source: source, config: config),
         'executable test' => Generators::TestGenerator.new(spec, spec_source: source, config: config),
         'decisions map' => Generators::MappingGenerator.new(spec, spec_source: source, config: config),
-        'postman collection' => Generators::PostmanGenerator.new(spec, spec_source: source, config: config)
+        'postman collection' => Generators::PostmanGenerator.new(spec, spec_source: source, config: config),
+        'safety audit' => Generators::SafetyGenerator.new(spec, spec_source: source, config: config)
       }
 
       written = []
