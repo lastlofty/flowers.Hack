@@ -103,7 +103,7 @@ module Paybridge
         conflict ||= { 'error' => { 'code' => 'conflict', 'message' => 'ordinary conflict' } }
         block['response_409_conflict'] = conflict
         block['expected_409_conflict'] = {
-          'status' => 'failed', 'provider_code' => conflict.dig('error', 'code'),
+          'status' => 'failed', 'provider_code' => error_code(conflict),
           'internal_code' => spec.error_map[409]
         }
         block['source_409_conflict'] = example.equal?(conflict) ? 'openapi' : 'synthetic'
@@ -113,7 +113,16 @@ module Paybridge
         spec.idempotency_header && spec.create_endpoint.response_codes.map(&:to_i).include?(409)
       end
 
+      # Безопасно достаёт error.code из примера ответа (пример может быть любым).
+      def error_code(example)
+        return nil unless example.is_a?(Hash)
+
+        err = example['error']
+        err.is_a?(Hash) ? err['code'] : nil
+      end
+
       def operation_for(request)
+        request = {} unless request.is_a?(Hash)
         amount = request['amount']
         amount /= 100.0 if amount && spec.amount && spec.amount[:minor_units]
         recipient = request['recipient']
@@ -143,7 +152,7 @@ module Paybridge
                                           'operation_status' => spec.status_map[example['status']] }
           elsif example.is_a?(Hash) && example['error']
             block["expected_#{code}"] = {
-              'status' => 'failed', 'provider_code' => example.dig('error', 'code'),
+              'status' => 'failed', 'provider_code' => error_code(example),
               'internal_code' => spec.error_map[code.to_i]
             }
           end
@@ -193,7 +202,7 @@ module Paybridge
             'operation_status' => spec.status_map[example['status']] }
         elsif example.is_a?(Hash) && example['error']
           { 'status' => 'failed',
-            'provider_code' => example.dig('error', 'code'),
+            'provider_code' => error_code(example),
             'internal_code' => spec.error_map[code.to_i] }
         else
           {}

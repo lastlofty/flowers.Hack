@@ -15,4 +15,9 @@ task :demo, [:spec, :provider] do |_t, args|
   ruby "exe/integrate --spec #{spec} --provider #{provider}"
 end
 
+desc 'Coverage-guided фаззинг генератора (по умолчанию 4000 итераций)'
+task :fuzz, [:iterations] do |_t, args|
+  ruby "tools/fuzz_generator.rb #{args[:iterations] || 4000}"
+end
+
 task default: :test

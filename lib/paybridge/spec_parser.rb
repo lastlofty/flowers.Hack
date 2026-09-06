@@ -40,7 +40,20 @@ module Paybridge
       validate_overrides!
       @doc = load_yaml
       validate_openapi!
+      guarded_build
+    end
 
+    # Остаточные type-ошибки разбора недоверенной спеки -> ParseError (это валидация
+    # ввода: тело работает только с @doc из спеки, а не с нашим кодогеном).
+    def guarded_build
+      build_ir
+    rescue ParseError
+      raise
+    rescue StandardError => e
+      raise ParseError, "структура спецификации некорректна (#{e.class}): #{e.message}"
+    end
+
+    def build_ir
       endpoints = build_endpoints
       create    = endpoints.find { |e| e.role == :create }
       status    = endpoints.find { |e| e.role == :status }
