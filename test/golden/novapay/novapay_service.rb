@@ -2,6 +2,7 @@
 
 require 'openssl'
 require 'json'
+require 'bigdecimal'
 
 # ────────────────────────────────────────────────────────────────────────
 # СГЕНЕРИРОВАНО PayBridge 1.0.0 из provider_api.yaml
@@ -44,16 +45,16 @@ module Provider
       500 => :internal_server_error
     }.freeze
 
-    PAYOUT_METHODS = %w[sbp card].freeze
+    PAYOUT_METHODS = ['sbp', 'card'].freeze
     REQUIRED_REQUISITE = {
-      'sbp' => %w[phone bank_code],
-      'card' => %w[phone card_number]
+      'sbp' => ['phone', 'bank_code'],
+      'card' => ['phone', 'card_number']
     }.freeze
 
     def check_conditions(operation, request_method)
       base_result = super
       return base_result if base_result.failed?
-      return failure(:unprocessable_entity, 'amount_too_low') if (operation.amount * 100).round < MIN_AMOUNT
+      return failure(:unprocessable_entity, 'amount_too_low') if amount_in_minor_units(operation.amount) < MIN_AMOUNT
       method = payout_method(operation, request_method)
       REQUIRED_REQUISITE.fetch(method, []).each do |field|
         if (operation.payout_requisite || {}).dig(method, field).nil?
@@ -108,10 +109,20 @@ module Provider
 
     private
 
+    # Contract: amount is in major units, two decimal places per currency.
+    # Decimal conversion avoids binary Float truncation; ties round half up.
+    # The same conversion is used for validation and the outgoing request.
+    def amount_in_minor_units(value)
+      decimal = BigDecimal(value.to_s)
+      raise ArgumentError, 'amount must be finite' unless decimal.finite?
+
+      (decimal * 100).round(0, BigDecimal::ROUND_HALF_UP).to_i
+    end
+
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       {
-        amount: (operation.amount * 100).to_i,
+        amount: amount_in_minor_units(operation.amount),
         currency: 'RUB',
         external_id: operation.id.to_s,
         recipient: build_recipient(operation, requisite, request_method)

@@ -90,6 +90,7 @@ module Provider
 
     private
 
+
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       {

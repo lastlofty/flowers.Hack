@@ -38,6 +38,10 @@ module Paybridge
       s.match?(IDENT_RE) ? ":#{s}" : ":#{rb(s)}"
     end
 
+    def string_array(values)
+      "[#{values.map { |value| rb(value) }.join(', ')}]"
+    end
+
     # Исходник ключа хэша: `name:` для валидного идентификатора, иначе `"name" =>`.
     def hash_key(name)
       s = name.to_s

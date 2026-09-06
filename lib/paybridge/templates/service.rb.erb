@@ -2,6 +2,9 @@
 
 require 'openssl'
 require 'json'
+<% if spec.amount && spec.amount[:minor_units] -%>
+require 'bigdecimal'
+<% end -%>
 <% if needs_base64? -%>
 require 'base64'
 <% end -%>
@@ -117,6 +120,18 @@ module Provider
 <% end -%>
 
     private
+
+<% if spec.amount && spec.amount[:minor_units] -%>
+    # Contract: amount is in major units, two decimal places per currency.
+    # Decimal conversion avoids binary Float truncation; ties round half up.
+    # The same conversion is used for validation and the outgoing request.
+    def amount_in_minor_units(value)
+      decimal = BigDecimal(value.to_s)
+      raise ArgumentError, 'amount must be finite' unless decimal.finite?
+
+      (decimal * 100).round(0, BigDecimal::ROUND_HALF_UP).to_i
+    end
+<% end -%>
 
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}

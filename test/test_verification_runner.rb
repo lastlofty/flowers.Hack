@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require 'minitest/autorun'
+require 'rbconfig'
 require 'tmpdir'
 require_relative '../lib/paybridge'
 
@@ -36,11 +37,7 @@ class TestVerificationRunner < Minitest::Test
   end
 
   def test_timeout_terminates_runner
-    docker = fake_docker(<<~'SH')
-      if [ "$1" = "image" ]; then exit 0; fi
-      if [ "$1" = "run" ]; then sleep 5; exit 0; fi
-      exit 0
-    SH
+    docker = fake_docker
     runner = Paybridge::VerificationRunner.new(docker: docker, timeout: 0.1)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -50,10 +47,19 @@ class TestVerificationRunner < Minitest::Test
 
   private
 
-  def fake_docker(body)
-    path = File.join(@root, 'docker')
-    File.write(path, "#!/bin/sh\n#{body}")
-    FileUtils.chmod(0o755, path)
-    path
+  def fake_docker
+    path = File.join(@root, 'fake_docker.rb')
+    File.write(path, <<~'RUBY')
+      case ARGV.first
+      when 'image'
+        exit 0
+      when 'run'
+        sleep 5
+        exit 0
+      else
+        exit 0
+      end
+    RUBY
+    [RbConfig.ruby, path]
   end
 end

@@ -56,8 +56,13 @@ module Paybridge
 
     def build_ir
       endpoints = build_endpoints
-      create    = endpoints.find { |e| e.role == :create }
-      status    = endpoints.find { |e| e.role == :status }
+      create_candidates = endpoints.select { |e| e.role == :create }
+      status_candidates = endpoints.select { |e| e.role == :status }
+      warn_ambiguous_endpoints('создания операции', create_candidates)
+      warn_ambiguous_endpoints('статус-запроса', status_candidates)
+
+      create    = create_candidates.first
+      status    = status_candidates.first
       cancel    = endpoints.find { |e| e.role == :cancel }
       webhook_e = endpoints.find { |e| e.role == :webhook }
 
@@ -498,6 +503,11 @@ module Paybridge
     end
 
     def resolve_ref(ref)
+      unless ref.to_s.start_with?('#/')
+        warn_once("Внешняя ссылка #{ref.inspect} не поддержана — часть схемы не развёрнута")
+        return nil
+      end
+
       parts = ref.sub(%r{^#/}, '').split('/')
       parts.reduce(@doc) { |acc, key| acc.is_a?(Hash) ? acc[key] : nil }
     end
@@ -511,17 +521,34 @@ module Paybridge
     # Глубоко разворачивает $ref внутри схемы (с защитой от циклов и бюджетом).
     def resolve_deep(node, seen = [], depth = 0)
       @resolve_budget = RESOLVE_NODE_BUDGET if seen.empty? && depth.zero?
-      return node if @resolve_budget.nil? || @resolve_budget <= 0 || depth > RESOLVE_MAX_DEPTH
+      if @resolve_budget.nil? || @resolve_budget <= 0
+        warn_once('Бюджет разворота $ref исчерпан — часть схемы не развёрнута')
+        return node
+      end
+      if depth > RESOLVE_MAX_DEPTH
+        warn_once('Максимальная глубина разворота $ref исчерпана — часть схемы не развёрнута')
+        return node
+      end
 
       @resolve_budget -= 1
 
       case node
       when Hash
+        warn_unsupported_combinators(node)
         if node['$ref']
           ref = node['$ref']
-          return {} if seen.include?(ref)
+          if seen.include?(ref)
+            warn_once("Циклическая ссылка #{ref.inspect} не развёрнута")
+            return {}
+          end
 
-          resolve_deep(resolve_ref(ref), seen + [ref], depth + 1)
+          resolved = resolve_ref(ref)
+          if resolved.nil?
+            warn_once("Ссылка #{ref.inspect} не найдена или не поддержана — часть схемы не развёрнута")
+            return {}
+          end
+
+          resolve_deep(resolved, seen + [ref], depth + 1)
         elsif node['allOf'].is_a?(Array)
           merge_all_of(node, seen, depth)
         else
@@ -563,6 +590,29 @@ module Paybridge
           end
       end
       result
+    end
+
+    def warn_ambiguous_endpoints(label, endpoints)
+      return unless endpoints.size > 1
+
+      choices = endpoints.map { |endpoint| "#{endpoint.http_method.upcase} #{endpoint.path}" }.join(', ')
+      @report.warn("Найдено несколько методов #{label}: #{choices}. Использован первый; при необходимости выберите endpoint вручную.")
+    end
+
+    def warn_unsupported_combinators(node)
+      %w[oneOf anyOf].each do |key|
+        next unless node[key].is_a?(Array)
+
+        warn_once("#{key} пока не разворачивается автоматически — проверьте маппинг полей вручную")
+      end
+    end
+
+    def warn_once(message)
+      @warned_messages ||= {}
+      return if @warned_messages[message]
+
+      @warned_messages[message] = true
+      @report.warn(message)
     end
 
     def dig(node, *keys)
