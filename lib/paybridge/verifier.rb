@@ -84,7 +84,11 @@ module Paybridge
 
     def run
       load_service!
-      cases = [guarded('check_conditions.normal') { verify_conditions }]
+      cases = [
+        guarded('check_conditions.normal') { verify_conditions },
+        guarded('check_conditions.amount_too_low') { verify_amount_too_low },
+        guarded('check_conditions.missing_requisite') { verify_missing_requisite }
+      ]
       cases.concat(verify_create)
       cases.concat(verify_status)
       cases.concat(verify_callback)
@@ -137,6 +141,51 @@ module Paybridge
     def verify_conditions
       result = call { |service| service.check_conditions(operation, 'create') }
       [result.success?, result_detail(result)]
+    end
+
+    # Негативный путь: сумма ниже минимума -> check_conditions должен отклонить.
+    # Самопропускается, если у сервиса нет минимальной суммы.
+    def verify_amount_too_low
+      min = service_const(:MIN_AMOUNT)
+      return [nil, 'У сервиса нет MIN_AMOUNT'] unless min.is_a?(Numeric) && min.positive?
+
+      result = call { |service| service.check_conditions(operation_with(amount: 0), 'create') }
+      ok = result.failed? && result.code == :unprocessable_entity
+      [ok, ok ? "Малая сумма отклонена (#{result.message})" : result_detail(result)]
+    end
+
+    # Негативный путь: отсутствуют обязательные реквизиты -> отклонение.
+    # Самопропускается, если сервис не требует реквизитов.
+    def verify_missing_requisite
+      method = requisite_method
+      result = call { |service| service.check_conditions(operation_with(payout_requisite: {}), method) }
+      return [nil, 'Сервис не требует реквизитов'] if result.success?
+
+      ok = result.failed? && result.code == :unprocessable_entity
+      [ok, ok ? "Пустые реквизиты отклонены (#{result.message})" : result_detail(result)]
+    end
+
+    def requisite_method
+      required = service_const(:REQUIRED_REQUISITE)
+      (required.is_a?(Hash) && required.keys.first) || 'create'
+    end
+
+    def service_const(name)
+      @service_class.const_defined?(name, false) ? @service_class.const_get(name, false) : nil
+    rescue StandardError
+      nil
+    end
+
+    def operation_with(**overrides)
+      base = operation
+      FakeOperation.new(
+        amount: overrides.fetch(:amount, base.amount),
+        currency: base.currency,
+        id: base.id,
+        payout_requisite: overrides.fetch(:payout_requisite, base.payout_requisite),
+        provider_operation_id: base.provider_operation_id,
+        idempotency_key: base.idempotency_key
+      )
     end
 
     def verify_create

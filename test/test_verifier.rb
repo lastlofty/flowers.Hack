@@ -60,6 +60,23 @@ class TestVerifier < Minitest::Test
     assert_equal 'passed', report.cases.find { |test_case| test_case.name == 'callback.invalid_signature' }.status
   end
 
+  def test_check_conditions_negative_paths_are_verified
+    report = verify('provider_api.yaml', 'novapay')
+    names = report.cases.map(&:name)
+    assert_includes names, 'check_conditions.amount_too_low'
+    assert_includes names, 'check_conditions.missing_requisite'
+    assert_equal 'passed', report.cases.find { |c| c.name == 'check_conditions.amount_too_low' }.status
+    assert_equal 'passed', report.cases.find { |c| c.name == 'check_conditions.missing_requisite' }.status
+  end
+
+  def test_negative_paths_skip_when_not_applicable
+    # Сервис без минимальной суммы/реквизитов не должен ложно проваливать сценарии.
+    report = verify('europay_api.yaml', 'europay')
+    assert_equal 0, report.failed
+    amount = report.cases.find { |c| c.name == 'check_conditions.amount_too_low' }
+    assert_includes %w[passed skipped], amount.status
+  end
+
   def test_wrong_outgoing_url_fails_but_other_cases_continue
     dir = generated_dir('provider_api.yaml', 'wrong_url')
     service = Dir[File.join(dir, '*_service.rb')].reject { |path| path.end_with?('base_service.rb') }.first
