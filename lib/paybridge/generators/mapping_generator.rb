@@ -33,6 +33,7 @@ module Paybridge
           'provenance' => provenance,
           'recognized' => recognized,
           'auth' => auth_block,
+          'extra_operations' => extra_operations,
           'idempotency_header' => spec.idempotency_header,
           'amount' => amount_block,
           'currency' => spec.currency,
@@ -76,6 +77,13 @@ module Paybridge
         ref = { 'ref' => "#{endpoint.http_method.upcase} #{endpoint.path}" }
         ref['line'] = endpoint.spec_line if endpoint.spec_line
         ref
+      end
+
+      # Операции вне контракта (balance/refund) с методом и путём.
+      def extra_operations
+        (spec.extra_operations || []).map do |op|
+          { 'name' => op['name'], 'ref' => "#{op['http_method']} #{op['path']}" }
+        end
       end
 
       def webhook_ref

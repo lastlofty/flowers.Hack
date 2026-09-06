@@ -101,6 +101,7 @@ module Paybridge
         create_endpoint: create,
         status_endpoint: status,
         cancel_endpoint: cancel,
+        extra_operations: detect_extra_operations(endpoints, [create, status, cancel, webhook_e].compact),
         create_success_codes: create_success_codes(create),
         webhook: build_webhook(webhook_e, status_map),
         status_map: status_map,
@@ -315,6 +316,24 @@ module Paybridge
         end
       end
       endpoints
+    end
+
+    # Операции вне обязательного контракта, но распознаваемые и полезные:
+    # баланс и возврат. Не теряем их — генерируем как методы «вне контракта».
+    EXTRA_OPS = [
+      { name: 'fetch_balance', method: 'get', re: /balance/i },
+      { name: 'refund_request', method: 'post', re: /refund/i }
+    ].freeze
+
+    def detect_extra_operations(endpoints, used)
+      EXTRA_OPS.filter_map do |op|
+        endpoint = endpoints.find do |e|
+          e.http_method == op[:method] && e.path.match?(op[:re]) && !used.include?(e)
+        end
+        next unless endpoint
+
+        { 'name' => op[:name], 'http_method' => endpoint.http_method.upcase, 'path' => endpoint.path }
+      end
     end
 
     def classify(path, http_method, _op)

@@ -22,6 +22,7 @@ auth:
   header: X-Auth-Token
   credentials_field: api_key
   line: 138
+extra_operations: []
 idempotency_header:
 amount:
   field: amount

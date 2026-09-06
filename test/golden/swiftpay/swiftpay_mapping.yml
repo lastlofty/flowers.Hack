@@ -20,6 +20,7 @@ auth:
   header: Authorization
   credentials_field: token
   line: 86
+extra_operations: []
 idempotency_header:
 amount:
   field: amount

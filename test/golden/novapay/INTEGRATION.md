@@ -25,6 +25,7 @@
 | create_request | POST `/payouts` | Создать выплату | `Idempotency-Key` header |
 | fetch_status | GET `/payouts/{payout_id}` | Получить статус выплаты | — |
 | cancel_request | POST `/payouts/{payout_id}/cancel` | Отменить выплату | — |
+| fetch_balance | GET `/balance` | Вне контракта | — |
 | process_callback | POST `/webhooks/payout` | Callback | `X-NovaPay-Signature` |
 
 ## Формат данных

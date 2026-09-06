@@ -38,6 +38,7 @@ module Paybridge
           'spec_sha256' => spec.spec_sha256,
           'endpoints' => spec.endpoints.map { |e| endpoint(e) },
           'recognized' => recognized,
+          'extra_operations' => spec.extra_operations || [],
           'auth' => auth,
           'idempotency_header' => spec.idempotency_header,
           'amount' => amount,

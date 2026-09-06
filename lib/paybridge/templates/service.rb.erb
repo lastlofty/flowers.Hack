@@ -110,6 +110,23 @@ module Provider
       failure(:service_unavailable, 'provider.network_error')
     end
 <% end -%>
+<% extra_operations.each do |op| -%>
+
+    # Вне контракта Provider::BaseService — операция <%= op['http_method'] %> <%= op['path'] %> из спеки
+    # (не теряем её). Тело/параметры уточните под провайдера.
+    def <%= op['name'] %>(operation = nil)
+<% if op['http_method'] == 'GET' -%>
+      response = client.get("#{BASE_URL}<%= extra_path_ruby(op) %>", headers: auth_headers)
+<% else -%>
+      response = client.post("#{BASE_URL}<%= extra_path_ruby(op) %>", json: {}, headers: auth_headers)
+<% end -%>
+      return map_error(response) if response.status >= 400
+
+      success(response: response.body)
+    rescue Provider::NetworkError
+      failure(:service_unavailable, 'provider.network_error')
+    end
+<% end -%>
 <% if spec.webhook -%>
 
     def process_callback(raw_body, signature = nil, _headers = {})

@@ -113,6 +113,17 @@ module Provider
       failure(:service_unavailable, 'provider.network_error')
     end
 
+    # Вне контракта Provider::BaseService — операция GET /balance из спеки
+    # (не теряем её). Тело/параметры уточните под провайдера.
+    def fetch_balance(operation = nil)
+      response = client.get("#{BASE_URL}/balance", headers: auth_headers)
+      return map_error(response) if response.status >= 400
+
+      success(response: response.body)
+    rescue Provider::NetworkError
+      failure(:service_unavailable, 'provider.network_error')
+    end
+
     def process_callback(raw_body, signature = nil, _headers = {})
       payload = JSON.parse(raw_body)
       verify_signature!(raw_body, signature)

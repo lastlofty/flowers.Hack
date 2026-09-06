@@ -121,6 +121,15 @@ module Paybridge
         spec.cancel_endpoint.path.gsub(/\{[^}]+\}/, '#{operation.provider_operation_id}')
       end
 
+      # Путь операции вне контракта (balance/refund) с подстановкой {id}.
+      def extra_path_ruby(op)
+        op['path'].gsub(/\{[^}]+\}/, '#{operation.provider_operation_id}')
+      end
+
+      def extra_operations
+        spec.extra_operations || []
+      end
+
       def approve_events
         return [] unless spec.webhook
 
@@ -158,6 +167,10 @@ module Paybridge
         end
         rows << row('fetch_status', spec.status_endpoint, 'Статус', '—') if spec.status_endpoint
         rows << row('cancel_request', spec.cancel_endpoint, 'Отмена', '—') if spec.cancel_endpoint
+        (spec.extra_operations || []).each do |op|
+          rows << { service: op['name'], endpoint: "#{op['http_method']} `#{op['path']}`",
+                    purpose: 'Вне контракта', idempotency: '—' }
+        end
         if spec.webhook
           rows << { service: 'process_callback', endpoint: "POST `#{spec.webhook.path}`",
                     purpose: 'Callback',

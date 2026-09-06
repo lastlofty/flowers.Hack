@@ -24,6 +24,9 @@ auth:
   header: X-API-Key
   credentials_field: api_key
   line: 255
+extra_operations:
+- name: fetch_balance
+  ref: GET /balance
 idempotency_header: Idempotency-Key
 amount:
   field: amount
