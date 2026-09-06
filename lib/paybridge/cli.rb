@@ -16,6 +16,7 @@ module Paybridge
       return validate(argv[1..]) if argv.first == 'validate'
       return lint_cmd(argv[1..]) if argv.first == 'lint'
       return diff_cmd(argv[1..]) if argv.first == 'diff'
+      return docs_cmd(argv[1..]) if argv.first == 'docs'
 
       options = parse_options(argv)
       run(options)
@@ -181,6 +182,35 @@ module Paybridge
       end
     rescue Paybridge::GenerationError => e
       warn "\e[31mОшибка генерации:\e[0m #{e.message}"
+      1
+    end
+
+    # integrate docs --spec provider_api.yaml --provider novapay --output docs/
+    # Портируемая HTML-инструкция по интеграции (открыть в браузере / отдать заказчику).
+    def docs_cmd(argv)
+      opts = { output: './output', config: Paybridge::DEFAULT_CONFIG }
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate docs --spec <file|url> --provider <name> [--output DIR]'
+        o.on('--spec PATH') { |v| opts[:spec] = v }
+        o.on('--provider NAME') { |v| opts[:provider] = v }
+        o.on('--output DIR') { |v| opts[:output] = v }
+        o.on('--overrides PATH') { |v| opts[:overrides] = v }
+        o.on('--config PATH') { |v| opts[:config] = v }
+      end.parse!(argv)
+      abort 'Не указан --spec' unless opts[:spec]
+      abort 'Не указан --provider' unless opts[:provider]
+
+      config    = Paybridge.load_config(opts[:config])
+      overrides = Paybridge.load_overrides(opts[:overrides])
+      spec = SpecParser.new(opts[:spec], opts[:provider], config, overrides).parse
+      generator = Generators::HtmlGuideGenerator.new(spec, config: config)
+      FileUtils.mkdir_p(opts[:output])
+      path = File.join(opts[:output], generator.filename)
+      File.binwrite(path, generator.render)
+      puts "HTML-инструкция: #{path}"
+      0
+    rescue SpecParser::ParseError => e
+      warn "\e[31mОшибка разбора спецификации:\e[0m #{e.message}"
       1
     end
 

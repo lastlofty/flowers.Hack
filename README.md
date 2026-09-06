@@ -177,6 +177,17 @@ docker run --rm -v "$PWD:/work" paybridge \
   --spec /work/examples/provider_api.yaml --provider novapay --output /work/output
 ```
 
+## HTML-инструкция (docs)
+
+`docs` собирает самодостаточную HTML-инструкцию по интеграции (что распознано,
+авторизация, методы, маппинги, webhook, поля «заполнить вручную», диагностика с
+уровнями, провенанс) — открыть в браузере или отдать заказчику.
+
+```bash
+ruby exe/integrate docs --spec examples/provider_api.yaml --provider novapay --output docs
+# HTML-инструкция: docs/novapay_integration.html
+```
+
 ## Линт спецификации (Python-модуль)
 
 Структурная проверка OpenAPI по стандарту (paths/операции/ответы, разрешимость
