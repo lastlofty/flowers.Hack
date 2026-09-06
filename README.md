@@ -125,6 +125,19 @@ ruby exe/integrate verify --dir output
 ruby exe/integrate lint --spec examples/provider_api.yaml
 ```
 
+## Живой e2e (по реальному HTTP)
+
+Сгенерированный сервис прогоняется против мок-провайдера (WEBrick, поднят из спеки)
+РЕАЛЬНЫМ `net/http`: `create` (POST с авторизацией и Idempotency-Key, сумма в
+копейках в теле) → `fetch_status` (GET) → `webhook` (подпись по сырому телу; подделка
+тела отклоняется). Доказывает, что интеграция работает целиком по проводам, а не
+только через мок-клиент.
+
+```bash
+ruby tools/e2e_demo.rb                          # NovaPay
+ruby tools/e2e_demo.rb examples/real/yookassa.yaml yookassa
+```
+
 ## Тесты
 
 ```bash
