@@ -8,8 +8,13 @@ Rake::TestTask.new(:test) do |t|
   t.warning = false
 end
 
-desc 'Прогнать генератор на примере (по умолчанию NovaPay)'
-task :demo, [:spec, :provider] do |_t, args|
+desc 'Демо: весь конвейер по всем провайдерам + HTML-отчёт (demo_report.html)'
+task :demo do
+  ruby 'tools/demo.rb'
+end
+
+desc 'Прогнать генератор на одном примере'
+task :gen, [:spec, :provider] do |_t, args|
   spec = args[:spec] || 'examples/provider_api.yaml'
   provider = args[:provider] || 'novapay'
   ruby "exe/integrate --spec #{spec} --provider #{provider}"

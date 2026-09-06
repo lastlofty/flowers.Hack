@@ -125,6 +125,17 @@ ruby exe/integrate verify --dir output
 ruby exe/integrate lint --spec examples/provider_api.yaml
 ```
 
+## Демо одной командой + HTML-отчёт
+
+`rake demo` прогоняет весь конвейер (parse → generate → `ruby -c` → verify) по всем
+провайдерам (включая реальную ЮKassa) и печатает сводную таблицу + пишет
+самодостаточный `demo_report.html` (что распознано, маппинги, артефакты, verify,
+честные предупреждения) — одна страница для наглядной демонстрации.
+
+```bash
+rake demo
+```
+
 ## Живой e2e (по реальному HTTP)
 
 Сгенерированный сервис прогоняется против мок-провайдера (WEBrick, поднят из спеки)
