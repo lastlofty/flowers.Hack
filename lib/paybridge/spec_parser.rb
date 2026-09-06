@@ -107,7 +107,9 @@ module Paybridge
 
     def load_yaml
       YAML.safe_load(read_spec_source, aliases: true)
-    rescue Psych::SyntaxError => e
+    rescue Psych::Exception, EncodingError, ArgumentError => e
+      # Psych: SyntaxError/DisallowedClass (!ruby/object, дата, символ)/BadAlias;
+      # Encoding/Argument: невалидные байты (не-UTF-8 вход от байтового фаззера).
       raise ParseError, "Некорректный YAML: #{e.message}"
     end
 

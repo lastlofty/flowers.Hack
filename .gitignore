@@ -6,3 +6,8 @@
 vendor/bundle/
 Gemfile.lock
 .DS_Store
+# libFuzzer/Ruzzy артефакты
+crash-*
+oom-*
+timeout-*
+leak-*

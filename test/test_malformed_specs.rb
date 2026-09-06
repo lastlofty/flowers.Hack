@@ -109,4 +109,40 @@ class TestMalformedSpecs < Minitest::Test
     doc['paths']['/payouts']['post'] = true
     assert_generation_error(doc, 'operation=true')
   end
+
+  # --- «сырой» YAML (то, что нашёл бы байтовый фаззер вроде Ruzzy) ---
+
+  def generate_raw(yaml)
+    file = Tempfile.new(['r', '.yaml'])
+    file.write(yaml)
+    file.rewind
+    Paybridge.generate(spec_path: file.path, provider: 'malformed')
+  ensure
+    file.close!
+  end
+
+  def assert_ge_raw(yaml, label)
+    generate_raw(yaml)
+  rescue Paybridge::GenerationError
+    pass
+  rescue StandardError => e
+    flunk "#{label}: ожидался GenerationError, получен #{e.class}: #{e.message}"
+  end
+
+  def test_yaml_disallowed_ruby_object
+    assert_ge_raw("--- !ruby/object:Foo {}\n", '!ruby/object')
+  end
+
+  def test_yaml_unquoted_date_is_disallowed_class
+    # Psych разбирает 2020-01-01 в Date, которого нет в permitted_classes -> DisallowedClass
+    assert_ge_raw("openapi: 3.0.3\ninfo: { title: T, version: '1', released: 2020-01-01 }\npaths: {}\n", 'unquoted date')
+  end
+
+  def test_random_bytes_not_yaml
+    assert_ge_raw("\x00\x01\x02 not: [valid\n", 'random bytes')
+  end
+
+  def test_invalid_utf8_bytes
+    assert_ge_raw("openapi: \xFF\xFE\xFA bad bytes\n".b, 'invalid utf-8')
+  end
 end
