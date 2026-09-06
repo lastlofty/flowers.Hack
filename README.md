@@ -112,6 +112,18 @@ ruby exe/integrate verify --dir output
   7 passed, 0 failed
 ```
 
+## Линт спецификации (Python-модуль)
+
+Структурная проверка OpenAPI по стандарту (paths/операции/ответы, разрешимость
+`$ref`, существование ссылок `security`) вынесена в отдельный **Python-модуль**
+`tools/openapi_lint.py` (только stdlib). Многоязычность разрешена правилами; ядро
+остаётся на Ruby, а линтер — вспомогательный слой и **опционален** (нет Python —
+шаг пропускается, генерация работает).
+
+```bash
+ruby exe/integrate lint --spec examples/provider_api.yaml
+```
+
 ## Тесты
 
 ```bash

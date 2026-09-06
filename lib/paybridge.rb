@@ -13,6 +13,7 @@ require_relative 'paybridge/generators/fixtures_generator'
 require_relative 'paybridge/generators/test_generator'
 require_relative 'paybridge/verifier'
 require_relative 'paybridge/verification_runner'
+require_relative 'paybridge/linter'
 require_relative 'paybridge/cli'
 
 # Единая точка входа PayBridge.

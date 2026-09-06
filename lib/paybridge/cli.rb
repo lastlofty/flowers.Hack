@@ -14,6 +14,7 @@ module Paybridge
     def start(argv)
       return verify(argv[1..]) if argv.first == 'verify'
       return validate(argv[1..]) if argv.first == 'validate'
+      return lint_cmd(argv[1..]) if argv.first == 'lint'
 
       options = parse_options(argv)
       run(options)
@@ -27,6 +28,45 @@ module Paybridge
     end
 
     private
+
+    # integrate lint --spec provider_api.yaml
+    # Структурная проверка OpenAPI Python-модулем (tools/openapi_lint.py).
+    def lint_cmd(argv)
+      spec = nil
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate lint --spec <file|url>'
+        o.on('--spec PATH') { |v| spec = v }
+      end.parse!(argv)
+      abort 'Не указан --spec' unless spec
+
+      require 'yaml'
+      content = if spec.match?(%r{\Ahttps?://}i)
+                  require 'open-uri'
+                  URI.parse(spec).open(&:read)
+                else
+                  File.read(spec)
+                end
+      doc = YAML.safe_load(content, aliases: true)
+
+      report = Paybridge::Linter.lint(doc)
+      if report['skipped']
+        warn "\e[33mЛинтер пропущен:\e[0m #{report['reason']} (Python-модуль опционален)"
+        return 0
+      end
+
+      (report['warnings'] || []).each { |w| puts "\e[33mwarn\e[0m  #{w['path']}: #{w['message']}" }
+      (report['errors'] || []).each  { |e| puts "\e[31merror\e[0m #{e['path']}: #{e['message']}" }
+      if report['valid']
+        puts "\e[32mOK\e[0m — структура OpenAPI валидна"
+        0
+      else
+        puts "Найдено ошибок: #{report['errors'].size}"
+        1
+      end
+    rescue StandardError => e
+      warn "\e[31mОшибка линта:\e[0m #{e.message}"
+      1
+    end
 
     # integrate validate --spec provider_api.yaml --provider <name>
     # Разбор без генерации: показать, что распознал парсер.
