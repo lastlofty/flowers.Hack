@@ -109,7 +109,11 @@ module Paybridge
       @service_source = File.read(service_file, 1_000_001)
 
       # Worker всегда новый, поэтому загружается именно текущая интеграция.
-      load base
+      # base_service.rb — фиксированный платформенный стаб; при повторной загрузке
+      # (несколько интеграций в одном процессе, напр. в тестах) его константы
+      # переопределяются, давая шумные "already initialized constant". Глушим
+      # только этот load; сгенерированный сервис грузим с полными предупреждениями.
+      silence_warnings { load base }
       load service_file
       @service_class = Provider.const_get(class_name(provider), false)
     rescue JSON::ParserError => e
@@ -120,6 +124,14 @@ module Paybridge
 
     def class_name(provider)
       "#{provider.split(/[_\-\s]+/).map(&:capitalize).join}Service"
+    end
+
+    def silence_warnings
+      old = $VERBOSE
+      $VERBOSE = nil
+      yield
+    ensure
+      $VERBOSE = old
     end
 
     def verify_conditions

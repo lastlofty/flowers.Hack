@@ -53,6 +53,10 @@ module Paybridge
         warn "\e[33mЛинтер пропущен:\e[0m #{report['reason']} (Python-модуль опционален)"
         return 0
       end
+      if report['error']
+        warn "\e[31mЛинтер не отработал:\e[0m #{report['reason']}"
+        return 1
+      end
 
       (report['warnings'] || []).each { |w| puts "\e[33mwarn\e[0m  #{w['path']}: #{w['message']}" }
       (report['errors'] || []).each  { |e| puts "\e[31merror\e[0m #{e['path']}: #{e['message']}" }

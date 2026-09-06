@@ -26,17 +26,22 @@ module Paybridge
     end
 
     # spec — распарсенный Hash (Ruby разбирает YAML, Python валидирует структуру).
-    # Возвращает { 'valid'=>, 'errors'=>[], 'warnings'=>[] } или { 'skipped'=>true }.
+    # Возвращает один из трёх видов результата:
+    #   { 'valid'=>, 'errors'=>[], 'warnings'=>[] } — линт отработал;
+    #   { 'skipped'=>true, 'reason'=> } — Python недоступен (модуль опционален);
+    #   { 'error'=>true, 'reason'=> } — Python ЕСТЬ, но вызов не удался.
+    # Разделение важно: раньше реальный сбой (напр. кривая кодировка вывода) молча
+    # попадал в 'skipped', и линтер незаметно отключался вместо явной ошибки.
     def lint(spec)
       bin = python_bin
       return { 'skipped' => true, 'reason' => 'Python недоступен' } unless bin && File.exist?(SCRIPT)
 
       out, err, = Open3.capture3(bin, SCRIPT, stdin_data: JSON.generate(spec))
-      return { 'skipped' => true, 'reason' => err.strip } if out.strip.empty?
+      return { 'error' => true, 'reason' => "линтер не вернул результат: #{err.to_s.scrub.strip}" } if out.strip.empty?
 
       JSON.parse(out)
     rescue StandardError => e
-      { 'skipped' => true, 'reason' => e.message }
+      { 'error' => true, 'reason' => e.message.to_s.scrub }
     end
   end
 end
