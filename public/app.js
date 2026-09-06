@@ -256,13 +256,28 @@ function nextStepPanel(title, text, actionText, action) {
 }
 function warningAdvice(message) {
   const text = String(message);
-  if (text.includes('amount_unit')) return 'Проверьте, сумма у провайдера в рублях или копейках. При необходимости задайте overrides.amount_unit.';
-  if (text.includes('required_if')) return 'Это условная обязательность реквизитов. Для точности задайте правило в overrides.required_if.';
-  if (text.includes('signature_encoding')) return 'Уточните формат подписи webhook: hex или base64.';
+  if (text.includes('amount_unit')) return 'Выберите, в каких единицах провайдер ждёт сумму. Это попадёт в генерацию как amount_unit.';
+  if (text.includes('required_if')) return 'Укажите сценарий, при котором реквизит обязателен. Например: sbp или card.';
+  if (text.includes('signature_encoding')) return 'Выберите формат подписи webhook: hex или base64.';
   if (text.includes('oneOf') || text.includes('anyOf')) return 'Проверьте выбранную ветку схемы вручную: генератор не выбирает вариант автоматически.';
   if (text.includes('$ref') || text.includes('ссылка')) return 'Часть схемы не раскрыта. Лучше встроить нужный компонент в OpenAPI или проверить поля вручную.';
   if (text.includes('несколько методов')) return 'На защите покажите, какой endpoint выбран, или уточните выбор вручную перед финальной интеграцией.';
   return 'Проверьте это место перед подключением к реальному провайдеру.';
+}
+function warningTitle(message) {
+  const text = String(message);
+  const field = text.match(/поля '([^']+)'/i)?.[1];
+  if (text.includes('amount_unit')) return 'Подтвердите единицу суммы';
+  if (text.includes('signature_encoding')) return 'Подтвердите формат подписи';
+  if (text.includes('required_if') && field) return `Когда обязательно ${field}`;
+  if (text.includes('oneOf') || text.includes('anyOf')) return 'Проверьте вариант схемы';
+  if (text.includes('$ref') || text.includes('ссылка')) return 'Проверьте ссылку в схеме';
+  if (text.includes('несколько методов')) return 'Проверьте выбранный метод';
+  return 'Требуется внимание';
+}
+function warningDefault(message, fallback = '') {
+  const match = String(message).match(/принят[ао]? '([^']+)'/i);
+  return match?.[1] || fallback;
 }
 function requiredFieldsFromWarnings(warnings) {
   const fields = [];
@@ -272,65 +287,91 @@ function requiredFieldsFromWarnings(warnings) {
   });
   return fields;
 }
+function hasClarificationWarnings(warnings) {
+  return warnings.some(message => {
+    const text = String(message);
+    return text.includes('amount_unit') || text.includes('required_if') || text.includes('signature_encoding');
+  });
+}
 function ensureClarificationPanel() {
   if (state.clarificationPanel) return state.clarificationPanel;
   const panel = el('section', null, 'clarification-panel');
   panel.id = 'clarification-panel';
-  const submit = $('analyze-button');
-  submit.before(panel);
+  $('warnings-panel').before(panel);
   state.clarificationPanel = panel;
   return panel;
+}
+function clarificationField(labelText, hintText, control) {
+  const label = el('label', null, 'clarification-field');
+  const text = el('span');
+  text.append(el('strong', labelText));
+  if (hintText) text.append(el('small', hintText));
+  label.append(text, control);
+  return label;
 }
 function renderClarifications() {
   const warnings = state.model?.warnings || [];
   const panel = ensureClarificationPanel();
   panel.replaceChildren();
-  panel.hidden = !state.model || !warnings.length || !!state.generation;
+  panel.hidden = state.stage !== 1 || !state.model || !!state.generation || !hasClarificationWarnings(warnings);
   if (panel.hidden) return;
 
-  panel.append(el('strong', 'Нужны уточнения'));
-  panel.append(el('p', 'Разбор нашёл места, где OpenAPI не даёт точного ответа. Заполните поля перед генерацией, чтобы убрать догадки из результата.'));
+  const requiredFields = requiredFieldsFromWarnings(warnings);
+  const amountWarning = warnings.find(message => String(message).includes('amount_unit'));
+  const signatureWarning = warnings.find(message => String(message).includes('signature_encoding'));
+  const fieldsTotal = (amountWarning ? 1 : 0) + (signatureWarning ? 1 : 0) + requiredFields.length;
+  const header = el('div', null, 'clarification-header');
+  const copy = el('div');
+  copy.append(el('span', 'УТОЧНЕНИЯ ПЕРЕД ГЕНЕРАЦИЕЙ', 'section-label'));
+  copy.append(el('h2', `Заполните ${fieldsTotal} пункта`));
+  copy.append(el('p', 'OpenAPI не всегда описывает бизнес-правила. Здесь разработчик подтверждает догадки генератора, чтобы результат был чище.'));
+  header.append(copy, statusPill('warn', `${fieldsTotal} нужно подтвердить`));
+  panel.append(header);
 
-  if (warnings.some(message => String(message).includes('amount_unit'))) {
-    const label = el('label', null, 'clarification-field');
-    label.append(el('span', 'Единица суммы'));
+  const grid = el('div', null, 'clarification-grid');
+  if (amountWarning) {
     const select = el('select');
     select.name = 'amount_unit';
-    select.append(new Option('Не уточнять', ''), new Option('minor: копейки/центы', 'minor'), new Option('major: рубли/доллары', 'major'));
-    select.value = state.overrides.amount_unit || '';
+    select.append(new Option('minor: копейки / центы', 'minor'), new Option('major: рубли / доллары', 'major'));
+    select.value = state.overrides.amount_unit || warningDefault(amountWarning, 'minor');
     select.onchange = rememberOverrides;
-    label.append(select);
-    panel.append(label);
+    grid.append(clarificationField('Сумма в API', 'В каких единицах провайдер принимает amount.', select));
   }
 
-  if (warnings.some(message => String(message).includes('signature_encoding'))) {
-    const label = el('label', null, 'clarification-field');
-    label.append(el('span', 'Кодировка подписи webhook'));
+  if (signatureWarning) {
     const select = el('select');
     select.name = 'signature_encoding';
-    select.append(new Option('Не уточнять', ''), new Option('hex', 'hex'), new Option('base64', 'base64'));
-    select.value = state.overrides.signature_encoding || '';
+    select.append(new Option('hex', 'hex'), new Option('base64', 'base64'));
+    select.value = state.overrides.signature_encoding || warningDefault(signatureWarning, 'hex');
     select.onchange = rememberOverrides;
-    label.append(select);
-    panel.append(label);
+    grid.append(clarificationField('Подпись webhook', 'Как кодируется HMAC-подпись в заголовке.', select));
   }
 
-  requiredFieldsFromWarnings(warnings).forEach(field => {
-    const label = el('label', null, 'clarification-field');
-    label.append(el('span', `Когда обязательно поле ${field}`));
+  requiredFields.forEach(field => {
     const input = el('input');
     input.type = 'text';
     input.placeholder = field.includes('card') ? 'card' : field.includes('bank') ? 'sbp' : 'например, sbp';
     input.dataset.requiredField = field;
-    input.value = state.overrides.required_if?.[field] || '';
+    input.value = state.overrides.required_if?.[field] || input.placeholder.replace('например, ', '');
     input.oninput = rememberOverrides;
-    label.append(input);
-    panel.append(label);
+    grid.append(clarificationField(`${field} обязателен для`, 'Напишите условие: sbp, card или другой тип операции.', input));
   });
-  const apply = el('button', 'Применить уточнения', 'button small full');
+  panel.append(grid);
+
+  const actions = el('div', null, 'clarification-actions');
+  actions.append(el('p', 'Нажмите “Применить”, и разбор сразу пересчитается с вашими значениями.'));
+  const apply = el('button', 'Применить и перепроверить →', 'button primary');
   apply.type = 'button';
   apply.onclick = () => { rememberOverrides(); analyze(); };
-  panel.append(apply);
+  actions.append(apply);
+  panel.append(actions);
+}
+function focusClarifications() {
+  renderClarifications();
+  const panel = state.clarificationPanel;
+  if (!panel || panel.hidden) return;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  panel.querySelector('select,input,button')?.focus({ preventScroll: true });
 }
 function renderReadiness(target, model, generation = null) {
   const warnings = generation?.warnings ?? model?.warnings ?? [];
@@ -381,7 +422,6 @@ function renderSource() {
     button.append(el('span', endpoint.method, `method ${endpoint.method === 'GET' ? 'get' : endpoint.method === 'POST' ? '' : 'other'}`), el('span', endpoint.path, 'endpoint-path'), el('small', roles[endpoint.role] || 'Неизвестная роль'));
     button.onclick = () => { state.endpoint = index; state.tab = 'methods'; state.stage = 1; render(); }; list.append(button);
   });
-  renderClarifications();
 }
 function renderModel() {
   const container = $('model-content'); container.replaceChildren(); if (!state.model) return;
@@ -401,13 +441,17 @@ function renderModel() {
     const readiness = el('div', null, 'readiness-grid');
     renderReadiness(readiness, model);
     container.append(el('div', null, 'panel-divider'), el('h3', 'Готовность к генерации'), readiness);
+    const hasCreate = model.endpoints.some(e => e.role === 'create');
+    const needsClarification = hasClarificationWarnings(model.warnings || []);
     container.append(nextStepPanel(
-      model.endpoints.some(e => e.role === 'create') ? 'Следующий шаг: сгенерировать файлы' : 'Нужен метод создания операции',
-      model.endpoints.some(e => e.role === 'create')
-        ? 'После генерации появятся Ruby-сервис, инструкция, fixtures и тестовый файл. Предупреждения останутся рядом с результатом.'
-        : 'В спецификации не найден подходящий create endpoint, поэтому сервис получится неполным.',
-      model.endpoints.some(e => e.role === 'create') ? 'Сгенерировать' : null,
-      generate
+      !hasCreate ? 'Нужен метод создания операции' : needsClarification ? 'Следующий шаг: уточнить правила' : 'Следующий шаг: сгенерировать файлы',
+      !hasCreate
+        ? 'В спецификации не найден подходящий create endpoint, поэтому сервис получится неполным.'
+        : needsClarification
+          ? 'Ниже есть короткая форма: подтвердите единицы суммы, подпись и условные поля, затем перепроверьте разбор.'
+          : 'После генерации появятся Ruby-сервис, инструкция, fixtures и тестовый файл.',
+      !hasCreate ? null : needsClarification ? 'Заполнить уточнения' : 'Сгенерировать',
+      needsClarification ? focusClarifications : generate
     ));
   } else if (state.tab === 'statuses') {
     const statuses = Object.entries(model.status_map || {});
@@ -488,7 +532,11 @@ function renderWarnings() {
   $('warnings-list').replaceChildren(...items.map(w => {
     const message = typeof w === 'string' ? w : JSON.stringify(w);
     const item = el('li');
-    item.append(el('strong', message), el('span', warningAdvice(message)));
+    const details = el('details', null, 'warning-details');
+    const summary = el('summary');
+    summary.append(el('strong', warningTitle(message)), el('span', warningAdvice(message)));
+    details.append(summary, el('p', message));
+    item.append(details);
     return item;
   }));
 }
@@ -502,8 +550,8 @@ function render() {
   if (state.generation) { archive.href = `/api/integrations/${encodeURIComponent(state.generation.id)}/archive`; archive.download = `integration_${state.generation.provider}.zip`; }
   else archive.removeAttribute('href');
   const warningCount = state.model?.warnings?.length || 0;
-  $('footer-description').textContent = state.generation ? `Интеграция ${state.generation.id}` : state.model?.endpoints.some(e => e.role === 'create') ? warningCount ? 'Заполните уточнения или изучите предупреждения перед генерацией.' : 'Можно генерировать интеграцию.' : 'Не найден метод создания операции. Генерация недоступна.';
-  renderSource(); renderModel(); renderFiles(); renderVerification(); renderWarnings(); renderControls();
+  $('footer-description').textContent = state.generation ? `Интеграция ${state.generation.id}` : state.model?.endpoints.some(e => e.role === 'create') ? warningCount ? 'Заполните уточнения в карточке справа и перепроверьте разбор.' : 'Можно генерировать интеграцию.' : 'Не найден метод создания операции. Генерация недоступна.';
+  renderSource(); renderModel(); renderFiles(); renderVerification(); renderClarifications(); renderWarnings(); renderControls();
 }
 
 $('source-form').addEventListener('submit', analyze);
