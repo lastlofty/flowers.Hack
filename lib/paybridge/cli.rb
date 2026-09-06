@@ -19,6 +19,8 @@ module Paybridge
       return diff_cmd(argv[1..]) if argv.first == 'diff'
       return docs_cmd(argv[1..]) if argv.first == 'docs'
       return selftest_cmd(argv[1..]) if argv.first == 'selftest'
+      return dump_ir_cmd(argv[1..]) if argv.first == 'dump-ir'
+      return resolve_cmd(argv[1..]) if argv.first == 'resolve'
 
       options = parse_options(argv)
       run(options)
@@ -239,6 +241,105 @@ module Paybridge
       passed = output.match?(/0 failures, 0 errors/)
       puts(passed ? "\e[32mselftest: зелёный\e[0m — #{summary}" : "\e[31mselftest: провал\e[0m — #{summary}")
       passed ? 0 : 1
+    end
+
+    # integrate dump-ir --spec provider_api.yaml --provider novapay [--output DIR]
+    # Дамп внутреннего представления (IR) -> <provider>.ir.json (прозрачность до кода).
+    def dump_ir_cmd(argv)
+      opts = parse_spec_opts(argv, 'dump-ir')
+      spec = parse_spec(opts)
+      generator = Generators::IrDumpGenerator.new(spec)
+      FileUtils.mkdir_p(opts[:output])
+      path = File.join(opts[:output], generator.filename)
+      File.binwrite(path, generator.render)
+      puts "IR: #{path}"
+      0
+    rescue SpecParser::ParseError => e
+      warn "\e[31mОшибка разбора спецификации:\e[0m #{e.message}"
+      1
+    end
+
+    # integrate resolve --spec provider_api.yaml --provider novapay [--lock decisions.yml]
+    # Печатает пронумерованные вопросы (что нельзя вывести из спеки) со строкой
+    # спеки и создаёт заготовку overrides-файла для ответов. Не выпускает код —
+    # только собирает решения (потом --overrides <lock> при генерации).
+    def resolve_cmd(argv)
+      opts = parse_spec_opts(argv, 'resolve')
+      lock = opts[:lock] || 'decisions.yml'
+      spec = parse_spec(opts)
+
+      questions = resolve_questions(spec)
+      if questions.empty?
+        puts "\e[32mresolve:\e[0m вопросов нет — интеграция допускается к настройке без уточнений."
+        return 0
+      end
+
+      puts "\e[33mТребуются решения (#{questions.size}):\e[0m"
+      questions.each_with_index do |q, i|
+        line = q[:line] ? " (спека, строка #{q[:line]})" : ''
+        puts "  #{i + 1}. #{q[:text]}#{line}"
+      end
+      File.binwrite(lock, resolve_lock_yaml(spec, questions))
+      puts
+      puts "Заготовка ответов: #{lock} — заполните и передайте `--overrides #{lock}` при генерации."
+      1 # ненулевой код: пока не выпущено (нужны решения)
+    rescue SpecParser::ParseError => e
+      warn "\e[31mОшибка разбора спецификации:\e[0m #{e.message}"
+      1
+    end
+
+    # Вопросы = поля для ручного заполнения + ключевые допущения (для проверки).
+    def resolve_questions(spec)
+      list = spec.report.todos.map do |todo|
+        { text: "Поле '#{todo.field}': #{todo.hint}", line: todo.line, key: todo.field }
+      end
+      # Только реальные развилки (нужен выбор), а не мягкие допущения с дефолтом.
+      (spec.report.diagnostics_by_level.fetch(:warn, []) +
+       spec.report.diagnostics_by_level.fetch(:error, [])).each do |message|
+        next unless message.match?(/Найдено несколько|Не удалось определить схему авторизации|Не найден метод/)
+
+        list << { text: "Выберите: #{message}", line: nil, key: nil }
+      end
+      list
+    end
+
+    # Заготовка overrides-файла (YAML) с текущими значениями и местами под ответы.
+    def resolve_lock_yaml(spec, questions)
+      lines = ['# PayBridge — решения по интеграции. Заполните и передайте как --overrides.', '#']
+      questions.each_with_index { |q, i| lines << "# #{i + 1}. #{q[:text]}" }
+      lines << ''
+      lines << "amount_unit: #{spec.amount && spec.amount[:minor_units] ? 'minor' : 'major'}   # minor|major"
+      lines << 'signature_encoding: hex   # hex|base64 (если подпись webhook)'
+      lines << '# create_endpoint: "POST /v1/payments"   # если выбран не тот метод'
+      lines << '# status_endpoint: "GET /v1/payments/{id}"'
+      lines << '# security_scheme: ApiKeyAuth             # имя схемы из securitySchemes'
+      unless spec.report.todos.empty?
+        lines << '# Поля для ручного заполнения (сопоставьте вручную в сгенерированном сервисе):'
+        spec.report.todos.each { |t| lines << "#   - #{t.field}#{t.line ? " (спека, строка #{t.line})" : ''}" }
+      end
+      "#{lines.join("\n")}\n"
+    end
+
+    def parse_spec_opts(argv, command)
+      opts = { output: './output', config: Paybridge::DEFAULT_CONFIG }
+      OptionParser.new do |o|
+        o.banner = "Usage: integrate #{command} --spec <file|url> --provider <name> [--output DIR] [--lock FILE]"
+        o.on('--spec PATH') { |v| opts[:spec] = v }
+        o.on('--provider NAME') { |v| opts[:provider] = v }
+        o.on('--output DIR') { |v| opts[:output] = v }
+        o.on('--lock PATH') { |v| opts[:lock] = v }
+        o.on('--overrides PATH') { |v| opts[:overrides] = v }
+        o.on('--config PATH') { |v| opts[:config] = v }
+      end.parse!(argv)
+      abort 'Не указан --spec' unless opts[:spec]
+      abort 'Не указан --provider' unless opts[:provider]
+      opts
+    end
+
+    def parse_spec(opts)
+      config    = Paybridge.load_config(opts[:config])
+      overrides = Paybridge.load_overrides(opts[:overrides])
+      SpecParser.new(opts[:spec], opts[:provider], config, overrides).parse
     end
 
     def parse_options(argv)

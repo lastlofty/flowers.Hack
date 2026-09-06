@@ -194,6 +194,26 @@ ruby exe/integrate selftest --dir output
 # selftest: зелёный — 15 runs, 85 assertions, 0 failures, 0 errors, 0 skips
 ```
 
+## IR и сбор решений (dump-ir, resolve)
+
+`dump-ir` печатает внутреннее представление (IR), в которое компилируется спека —
+методы с ролями и строками спеки, авторизация, маппинги, тело запроса, диагностика:
+
+```bash
+ruby exe/integrate dump-ir --spec examples/provider_api.yaml --provider novapay --output out
+# IR: out/novapay.ir.json
+```
+
+`resolve` печатает пронумерованные вопросы (что нельзя вывести из спеки — со
+строкой спеки) и создаёт заготовку overrides-файла для ответов. Ненулевой код,
+пока решения не собраны:
+
+```bash
+ruby exe/integrate resolve --spec examples/manualpay_api.yaml --provider manualpay --lock decisions.yml
+# Требуются решения (3): 1. Поле 'merchant_category' … (спека, строка 41) …
+# Заготовка ответов: decisions.yml — заполните и передайте --overrides decisions.yml
+```
+
 ## HTML-инструкция (docs)
 
 `docs` собирает самодостаточную HTML-инструкцию по интеграции (что распознано,
