@@ -91,6 +91,7 @@ module Paybridge
       ]
       cases.concat(verify_create)
       cases.concat(verify_status)
+      cases << guarded('cancel_request.response_200') { verify_cancel }
       cases.concat(verify_callback)
       Report.new(cases: cases, checked_at: Time.now.utc.iso8601)
     end
@@ -226,6 +227,20 @@ module Paybridge
           [assertions.all?(&:first), assertions.map(&:last).join('; ')]
         end
       end
+    end
+
+    # Отмена: провайдер поддерживает cancel_request (не входит в обязательный
+    # контракт). Самопропуск, если метод не сгенерирован или нет сценария.
+    def verify_cancel
+      return [nil, 'Сервис не поддерживает отмену'] unless @service_class.method_defined?(:cancel_request)
+
+      fixtures = @fixtures['cancel']
+      return [nil, 'В fixtures нет сценария отмены'] unless fixtures.is_a?(Hash) && fixtures['response_200'].is_a?(Hash)
+
+      result, request = with_client([200, fixtures['response_200']]) { |service| service.cancel_request(operation) }
+      _method, path = fixtures['endpoint'].to_s.split(' ', 2)
+      ok = result.success? && request && request[:method] == 'POST' && request[:url] == expected_url(path)
+      [ok, ok ? "Отмена: POST #{request[:url]}" : result_detail(result)]
     end
 
     def verify_callback

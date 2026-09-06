@@ -115,6 +115,12 @@ module Paybridge
         spec.status_endpoint.path.gsub(/\{[^}]+\}/, '#{operation.provider_operation_id}')
       end
 
+      def cancel_path_ruby
+        return '' unless spec.cancel_endpoint
+
+        spec.cancel_endpoint.path.gsub(/\{[^}]+\}/, '#{operation.provider_operation_id}')
+      end
+
       def approve_events
         return [] unless spec.webhook
 
@@ -151,7 +157,7 @@ module Paybridge
                       spec.idempotency_header ? "`#{spec.idempotency_header}` header" : '—')
         end
         rows << row('fetch_status', spec.status_endpoint, 'Статус', '—') if spec.status_endpoint
-        rows << row('(отмена)', spec.cancel_endpoint, 'Отмена', '—') if spec.cancel_endpoint
+        rows << row('cancel_request', spec.cancel_endpoint, 'Отмена', '—') if spec.cancel_endpoint
         if spec.webhook
           rows << { service: 'process_callback', endpoint: "POST `#{spec.webhook.path}`",
                     purpose: 'Callback',

@@ -29,8 +29,21 @@ module Paybridge
         data['auth'] = auth_block if spec.auth
         data['create_request'] = create_block if spec.create_endpoint
         data['fetch_status'] = status_block if spec.status_endpoint
+        data['cancel'] = cancel_block if spec.cancel_endpoint
         data['callback'] = callback_block if spec.webhook
         data
+      end
+
+      # Сценарий отмены: провайдер возвращает операцию с новым статусом.
+      def cancel_block
+        block = { 'endpoint' => "POST #{spec.cancel_endpoint.path}" }
+        status = spec.status_map.key('rejected') || spec.status_map.keys.first
+        if status
+          block['response_200'] = { 'id' => 'op_sample', 'status' => status }
+          block['expected_200'] = { 'status' => 'success', 'operation_status' => spec.status_map[status] }
+          block['source_200'] = 'synthetic'
+        end
+        block
       end
 
       def auth_block

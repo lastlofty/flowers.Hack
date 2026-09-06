@@ -96,6 +96,23 @@ module Provider
       failure(:service_unavailable, 'provider.network_error')
     end
 
+    # Отмена операции (метод POST /payouts/{payout_id}/cancel из спеки).
+    # Не входит в обязательный контракт, но провайдер его поддерживает — генерируем.
+    def cancel_request(operation)
+      response = client.post(
+        "#{BASE_URL}/payouts/#{operation.provider_operation_id}/cancel",
+        json: {},
+        headers: auth_headers
+      )
+      return map_error(response) if response.status >= 400
+
+      body = response.body.is_a?(Hash) ? response.body : {}
+      # Провайдер может вернуть новый статус операции; если нет — отмена принята.
+      success(status: map_status(body['status']))
+    rescue Provider::NetworkError
+      failure(:service_unavailable, 'provider.network_error')
+    end
+
     def process_callback(raw_body, signature = nil, _headers = {})
       payload = JSON.parse(raw_body)
       verify_signature!(raw_body, signature)

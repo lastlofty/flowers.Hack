@@ -166,6 +166,18 @@
     },
     "source_200": "synthetic"
   },
+  "cancel": {
+    "endpoint": "POST /payouts/{payout_id}/cancel",
+    "response_200": {
+      "id": "op_sample",
+      "status": "failed"
+    },
+    "expected_200": {
+      "status": "success",
+      "operation_status": "rejected"
+    },
+    "source_200": "synthetic"
+  },
   "callback": {
     "endpoint": "POST /webhooks/payout",
     "signature_header": "X-NovaPay-Signature",
