@@ -53,7 +53,7 @@ class TestSpecParser < Minitest::Test
   end
 
   def test_request_payload_literal
-    assert_includes @spec.request_payload_ruby, '(operation.amount * 100).to_i'
+    assert_includes @spec.request_payload_ruby, 'amount_in_minor_units(operation.amount)'
     # recipient с несколькими способами -> выбор в рантайме через build_recipient
     assert_includes @spec.request_payload_ruby, 'build_recipient(operation, requisite, request_method)'
     assert_equal %w[sbp card], @spec.recipient_spec['methods'].keys

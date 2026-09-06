@@ -35,7 +35,7 @@ class TestRequestMapper < Minitest::Test
     result = build
     assert result.amount[:minor_units]
     assert_equal 100_000, result.amount[:min_native]
-    assert_includes result.ruby, '(operation.amount * 100).to_i'
+    assert_includes result.ruby, 'amount_in_minor_units(operation.amount)'
   end
 
   def test_currency_and_external_id

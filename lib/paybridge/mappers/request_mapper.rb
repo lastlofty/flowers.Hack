@@ -8,7 +8,7 @@ module Paybridge
     # готовый Ruby-литерал хэша для вставки в шаблон сервиса.
     #
     # Конвенции (не привязаны к конкретному провайдеру):
-    #   * поле-сумма в минорных единицах  -> (operation.amount * 100).to_i
+    #   * поле-сумма в минорных единицах  -> amount_in_minor_units(operation.amount)
     #   * поле-валюта с единственным enum  -> строковый литерал этого значения
     #   * поле external_id / merchant id   -> operation.id.to_s
     #   * вложенный объект (реквизиты)      -> operation.payout_requisite.dig(group, field)
@@ -89,7 +89,7 @@ module Paybridge
           end
         elsif amount_field?(name, prop)
           record_amount(name, prop)
-          @amount[:minor_units] ? '(operation.amount * 100).to_i' : 'operation.amount'
+          @amount[:minor_units] ? 'amount_in_minor_units(operation.amount)' : 'operation.amount'
         elsif currency_field?(name, prop)
           record_currency(prop)
         elsif external_field?(name, prop)
@@ -154,6 +154,12 @@ module Paybridge
       end
 
       def record_amount(name, prop)
+        if prop.key?('minimum')
+          minimum = prop['minimum']
+          unless minimum.is_a?(Integer) || (minimum.is_a?(Float) && minimum.finite?)
+            raise GenerationError, "Поле '#{name}.minimum' должно быть конечным числом"
+          end
+        end
         unit = @overrides['amount_unit']
         minor =
           if unit
@@ -174,7 +180,7 @@ module Paybridge
 
       def record_currency(prop)
         @currency = prop['enum'].first
-        quote(@currency)
+        Safe.rb(@currency)
       end
 
       # Поле пропускаем, если оно принадлежит другому type=<...>.
@@ -326,9 +332,6 @@ module Paybridge
         ' ' * (6 + (depth - 1) * 2)
       end
 
-      def quote(value)
-        "'#{value}'"
-      end
     end
   end
 end

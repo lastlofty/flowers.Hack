@@ -132,7 +132,7 @@ module Paybridge
       stdout = +''
       stderr = +''
       status = nil
-      Open3.popen3(RbConfig.ruby, '-c', path, pgroup: true) do |stdin, out, err, wait|
+      Open3.popen3(RbConfig.ruby, '-c', path, *process_options) do |stdin, out, err, wait|
         stdin.close
         readers = [bounded_reader(out, stdout), bounded_reader(err, stderr)]
         unless wait.join(5)
@@ -161,11 +161,19 @@ module Paybridge
     end
 
     def terminate(pid)
-      Process.kill('TERM', -pid)
-      sleep 0.05
-      Process.kill('KILL', -pid)
+      if Gem.win_platform?
+        Process.kill('KILL', pid)
+      else
+        Process.kill('TERM', -pid)
+        sleep 0.05
+        Process.kill('KILL', -pid)
+      end
     rescue Errno::ESRCH
       nil
+    end
+
+    def process_options
+      Gem.win_platform? ? [] : [{ pgroup: true }]
     end
 
     def copy_base_service(dir)

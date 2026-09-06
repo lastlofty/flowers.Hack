@@ -36,7 +36,10 @@ module Paybridge
     def verify(dir)
       Paybridge::Verifier.new(dir).run
     rescue StandardError => e
-      OpenStruct.new(passed: 0, failed: 0, cases: [], error: e.message)
+      OpenStruct.new(
+        passed: 0, failed: 0, skipped: 0, cases: [], error: e.message,
+        status: 'error', all_passed?: false
+      )
     end
 
     def syntax_ok?(code)
@@ -54,9 +57,27 @@ module Paybridge
       CGI.escapeHTML(value.to_s)
     end
 
-    def badge(ok, text)
-      cls = ok ? 'ok' : 'bad'
+    def badge(status, text)
+      cls = case status.to_s
+            when 'passed' then 'ok'
+            when 'partial' then 'warn'
+            else 'bad'
+            end
       "<span class=\"badge #{cls}\">#{e(text)}</span>"
+    end
+
+    def verify_status(report)
+      return 'error' if report.respond_to?(:error) && report.error
+      return report.status if report.respond_to?(:status)
+      return 'failed' if report.failed.positive?
+      return 'partial' if report.respond_to?(:skipped) && report.skipped.positive?
+
+      report.passed.positive? ? 'passed' : 'partial'
+    end
+
+    def verify_label(report)
+      skipped = report.respond_to?(:skipped) ? report.skipped : 0
+      "#{report.passed}/#{report.passed + report.failed + skipped}"
     end
 
     def render(results)
@@ -74,8 +95,8 @@ module Paybridge
           "<td><b>#{e(r[:provider])}</b></td>" \
           "<td>#{m[:endpoints].size}</td>" \
           "<td>#{e(m.dig(:auth, :type) || '—')}</td>" \
-          "<td>#{badge(r[:syntax], r[:syntax] ? 'Syntax OK' : 'ошибка')}</td>" \
-          "<td>#{badge(r[:verify].failed.zero?, "#{r[:verify].passed}/#{r[:verify].passed + r[:verify].failed}")}</td>" \
+          "<td>#{badge(r[:syntax] ? 'passed' : 'failed', r[:syntax] ? 'Syntax OK' : 'ошибка')}</td>" \
+          "<td>#{badge(verify_status(r[:verify]), "#{verify_status(r[:verify])} #{verify_label(r[:verify])}")}</td>" \
           "<td>#{r[:warnings].size}</td>" \
           "</tr>"
       end.join
@@ -123,7 +144,10 @@ module Paybridge
         cls = c.status == 'passed' ? 'ok' : (c.status == 'skipped' ? 'warn' : 'bad')
         "<li class=\"#{cls}\">#{e(c.status.upcase)} — #{e(c.name)}</li>"
       end.join
-      "<h3>Verify: #{v.passed} passed, #{v.failed} failed</h3><ul class=\"cases\">#{cases}</ul>"
+      skipped = v.respond_to?(:skipped) ? v.skipped : 0
+      error = v.respond_to?(:error) && v.error ? "<p class=\"bad\">#{e(v.error)}</p>" : ''
+      "<h3>Verify: #{e(verify_status(v))} · #{v.passed} passed, #{v.failed} failed, #{skipped} skipped</h3>" \
+        "#{error}<ul class=\"cases\">#{cases}</ul>"
     end
 
     def files_html(files)
@@ -151,7 +175,7 @@ module Paybridge
         h3{font-size:.95rem;margin:12px 0 4px}
         .two{display:flex;gap:24px;flex-wrap:wrap}.two>div{flex:1;min-width:220px}
         .badge{padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
-        .badge.ok{background:#17803d22;color:#17803d}.badge.bad{background:#d3333322;color:#d33}
+        .badge.ok{background:#17803d22;color:#17803d}.badge.warn{background:#b7791f22;color:#b7791f}.badge.bad{background:#d3333322;color:#d33}
         code{background:#8881;padding:1px 6px;border-radius:5px;font-size:12px}
         .ok{color:#17803d}.bad{color:#d33}.warn{color:#b7791f}
         ul.cases{list-style:none;padding:0;columns:2}ul.cases li{font-size:12px}

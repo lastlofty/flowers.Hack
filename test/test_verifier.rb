@@ -74,12 +74,14 @@ class TestVerifier < Minitest::Test
   def test_wrong_header_or_amount_fails
     replacements = [
       ["'X-API-Key'", "'Wrong-Key'"],
-      ['(operation.amount * 100).to_i', '(operation.amount * 10).to_i']
+      ['amount: amount_in_minor_units(operation.amount)', 'amount: (operation.amount * 10).to_i']
     ]
     replacements.each_with_index do |(from, to), index|
       dir = generated_dir('provider_api.yaml', "wrong_request_#{index}")
       service = Dir[File.join(dir, '*_service.rb')].reject { |path| path.end_with?('base_service.rb') }.first
-      File.write(service, File.read(service).sub(from, to))
+      original = File.read(service)
+      assert_includes original, from, 'mutation must match generated code'
+      File.write(service, original.sub(from, to))
 
       report = Paybridge::Verifier.new(dir).run
       assert report.cases.any? { |item| item.name == 'create_request.response_201' && item.status == 'failed' }

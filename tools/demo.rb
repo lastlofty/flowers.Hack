@@ -18,7 +18,7 @@ providers << { spec: 'examples/real/yookassa.yaml', provider: 'yookassa' } if Fi
 results = providers.map { |e| Paybridge::HtmlReport.analyze(e[:spec], e[:provider]) }
 
 puts
-printf "%-10s %8s  %-8s  %-8s  %-9s  %s\n", 'провайдер', 'методов', 'auth', 'ruby -c', 'verify', 'предупр'
+printf "%-10s %8s  %-8s  %-8s  %-15s  %s\n", 'провайдер', 'методов', 'auth', 'ruby -c', 'verify', 'предупр'
 puts '-' * 62
 results.each do |r|
   if r[:error]
@@ -29,10 +29,15 @@ results.each do |r|
   printf "%-10s %8d  %-8s  %-8s  %-9s  %d\n",
          r[:provider], m[:endpoints].size, (m.dig(:auth, :type) || '—'),
          (r[:syntax] ? 'OK' : 'FAIL'),
-         "#{r[:verify].passed}/#{r[:verify].passed + r[:verify].failed}",
+         "#{Paybridge::HtmlReport.verify_status(r[:verify])} #{Paybridge::HtmlReport.verify_label(r[:verify])}",
          r[:warnings].size
 end
 
 File.write('demo_report.html', Paybridge::HtmlReport.render(results))
 puts
 puts 'HTML-отчёт: demo_report.html'
+
+failed = results.any? do |r|
+  r[:error] || !r[:syntax] || Paybridge::HtmlReport.verify_status(r[:verify]) != 'passed'
+end
+exit(failed ? 1 : 0)

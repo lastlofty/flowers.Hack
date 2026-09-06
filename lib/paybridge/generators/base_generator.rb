@@ -31,7 +31,7 @@ module Paybridge
       # Выражение для проверки минимума в корректных единицах (без деления).
       def amount_too_low_condition
         if spec.amount && spec.amount[:minor_units]
-          '(operation.amount * 100).round < MIN_AMOUNT'
+          'amount_in_minor_units(operation.amount) < MIN_AMOUNT'
         else
           'operation.amount < MIN_AMOUNT'
         end
@@ -56,13 +56,13 @@ module Paybridge
       end
 
       def payout_methods_literal
-        "%w[#{payout_methods.keys.join(' ')}]"
+        Safe.string_array(payout_methods.keys)
       end
 
       # Литерал REQUIRED_REQUISITE = { 'sbp' => %w[phone bank_code], ... }
       def required_requisite_literal
         entries = payout_methods.map do |method, info|
-          "      #{Safe.rb(method)} => %w[#{info['required'].join(' ')}]"
+          "      #{Safe.rb(method)} => #{Safe.string_array(info['required'])}"
         end
         "{\n#{entries.join(",\n")}\n    }.freeze"
       end

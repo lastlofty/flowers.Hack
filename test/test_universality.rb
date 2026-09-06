@@ -48,7 +48,7 @@ class TestUniversality < Minitest::Test
   end
 
   def test_card_payload
-    assert_includes @spec.request_payload_ruby, '(operation.amount * 100).to_i'
+    assert_includes @spec.request_payload_ruby, 'amount_in_minor_units(operation.amount)'
     assert_includes @spec.request_payload_ruby, "requisite.dig('card', 'card_number')"
   end
 
