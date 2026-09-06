@@ -160,6 +160,49 @@ function table(headers, rows) {
 }
 function note(text) { return el('div', text, 'inline-note'); }
 function empty(text) { return el('p', text, 'empty-content'); }
+function statusPill(status, text) {
+  const node = el('span', text, `status-pill ${status}`);
+  return node;
+}
+function metric(title, value, detail, status = '') {
+  const item = el('div', null, `metric ${status}`);
+  item.append(el('span', title), el('strong', value), el('small', detail));
+  return item;
+}
+function nextStepPanel(title, text, actionText, action) {
+  const panel = el('div', null, 'next-step-panel');
+  const copy = el('div'); copy.append(el('strong', title), el('p', text));
+  panel.append(copy);
+  if (actionText && action) {
+    const button = el('button', actionText, 'button primary small');
+    button.type = 'button';
+    button.onclick = action;
+    panel.append(button);
+  }
+  return panel;
+}
+function warningAdvice(message) {
+  const text = String(message);
+  if (text.includes('amount_unit')) return 'Проверьте, сумма у провайдера в рублях или копейках. При необходимости задайте overrides.amount_unit.';
+  if (text.includes('required_if')) return 'Это условная обязательность реквизитов. Для точности задайте правило в overrides.required_if.';
+  if (text.includes('signature_encoding')) return 'Уточните формат подписи webhook: hex или base64.';
+  if (text.includes('oneOf') || text.includes('anyOf')) return 'Проверьте выбранную ветку схемы вручную: генератор не выбирает вариант автоматически.';
+  if (text.includes('$ref') || text.includes('ссылка')) return 'Часть схемы не раскрыта. Лучше встроить нужный компонент в OpenAPI или проверить поля вручную.';
+  if (text.includes('несколько методов')) return 'На защите покажите, какой endpoint выбран, или уточните выбор вручную перед финальной интеграцией.';
+  return 'Проверьте это место перед подключением к реальному провайдеру.';
+}
+function renderReadiness(target, model, generation = null) {
+  const warnings = generation?.warnings ?? model?.warnings ?? [];
+  const createFound = model?.endpoints?.some(e => e.role === 'create');
+  const statusFound = model?.endpoints?.some(e => e.role === 'status');
+  const authFound = !!model?.auth;
+  const generated = !!generation;
+  target.append(metric('Метод создания', createFound ? 'Найден' : 'Нет', createFound ? 'Можно генерировать сервис' : 'Нужен POST без path-параметра', createFound ? 'good' : 'bad'));
+  target.append(metric('Статус операции', statusFound ? 'Найден' : 'Нет', statusFound ? 'Будет fetch_status()' : 'Проверка статуса будет неполной', statusFound ? 'good' : 'warn'));
+  target.append(metric('Авторизация', authFound ? model.auth.type : 'Не найдена', authFound ? model.auth.header || 'Схема без заголовка' : 'Потребуется ручная настройка', authFound ? 'good' : 'warn'));
+  target.append(metric('Предупреждения', String(warnings.length), warnings.length ? 'Есть места для уточнения' : 'Критичных уточнений нет', warnings.length ? 'warn' : 'good'));
+  if (generated) target.append(metric('Ruby-синтаксис', generation.valid ? 'OK' : 'Ошибка', generation.valid ? 'Файлы можно скачивать' : generation.syntax_error || 'Проверьте код', generation.valid ? 'good' : 'bad'));
+}
 function renderControls() {
   document.querySelectorAll('.endpoint-button').forEach(button => { button.disabled = state.busy; });
   document.querySelectorAll('[data-stage]').forEach(button => {
@@ -179,7 +222,14 @@ function renderSource() {
   $('drop-title').textContent = state.file ? 'Заменить спецификацию' : 'Перетащите YAML';
   $('drop-caption').textContent = state.file ? 'Новый файл сбросит результат' : 'или выберите файл';
   const summary = $('source-summary'); summary.replaceChildren(); summary.hidden = !state.model;
-  if (state.model) summary.append(el('strong', state.model.title || 'API без названия'), el('span', `Версия ${state.model.version || 'не указана'}`));
+  if (state.model) {
+    summary.append(el('strong', state.model.title || 'API без названия'), el('span', `Версия ${state.model.version || 'не указана'}`));
+    const chips = el('div', null, 'source-chips');
+    chips.append(statusPill('neutral', `${state.model.endpoints.length} методов`));
+    chips.append(statusPill(state.model.auth ? 'good' : 'warn', state.model.auth ? state.model.auth.type : 'auth не найден'));
+    chips.append(statusPill((state.model.warnings || []).length ? 'warn' : 'good', `${(state.model.warnings || []).length} предупреждений`));
+    summary.append(chips);
+  }
   $('endpoint-section').hidden = !state.model || state.stage >= 2;
   $('file-section').hidden = !state.generation || state.stage < 2;
   const list = $('endpoint-list'); list.replaceChildren();
@@ -206,6 +256,17 @@ function renderModel() {
     container.append(table(['Параметр', 'Распознано'], [['Назначение', roles[endpoint.role] || endpoint.role], ['Адрес API', model.base_url], ['Идемпотентность', model.idempotency_header || 'Не найдена']]));
     if (!methods[endpoint.role]) container.append(note('Этот endpoint найден в спецификации, но текущий генератор не создаёт для него отдельный метод.'));
     container.append(note('Сопоставления полей запроса пока не возвращаются API. После генерации их можно посмотреть в исходном Ruby-сервисе.'));
+    const readiness = el('div', null, 'readiness-grid');
+    renderReadiness(readiness, model);
+    container.append(el('div', null, 'panel-divider'), el('h3', 'Готовность к генерации'), readiness);
+    container.append(nextStepPanel(
+      model.endpoints.some(e => e.role === 'create') ? 'Следующий шаг: сгенерировать файлы' : 'Нужен метод создания операции',
+      model.endpoints.some(e => e.role === 'create')
+        ? 'После генерации появятся Ruby-сервис, инструкция, fixtures и тестовый файл. Предупреждения останутся рядом с результатом.'
+        : 'В спецификации не найден подходящий create endpoint, поэтому сервис получится неполным.',
+      model.endpoints.some(e => e.role === 'create') ? 'Сгенерировать' : null,
+      generate
+    ));
   } else if (state.tab === 'statuses') {
     const statuses = Object.entries(model.status_map || {});
     container.append(el('h2', 'Статусы операций'));
@@ -243,6 +304,8 @@ function renderFiles() {
     const fragment = document.createDocumentFragment();
     tokensFor(state.fileText, state.activeFile).forEach(token => fragment.append(token.kind ? el('span', token.text, `token-${token.kind}`) : document.createTextNode(token.text)));
     code.append(fragment);
+  } else if (!state.fileLoading && !state.fileError) {
+    code.append(document.createTextNode('Выберите файл слева, чтобы посмотреть его содержимое.'));
   }
 }
 function checkRow(title, description, status) {
@@ -253,6 +316,10 @@ function renderVerification() {
   const summary = $('verification-summary'), report = $('verification-report'); summary.replaceChildren(); report.replaceChildren();
   if (!state.generation) return;
   const gen = state.generation;
+  const model = state.model || {};
+  const readiness = el('div', null, 'readiness-grid');
+  renderReadiness(readiness, model, gen);
+  summary.append(readiness);
   summary.append(checkRow('Файлы созданы', `Получено файлов: ${gen.files.length}`, 'good'));
   summary.append(checkRow('Ruby-синтаксис', gen.valid === true ? 'Сервис прошёл ruby -c.' : gen.valid === false ? gen.syntax_error || 'Синтаксическая проверка не пройдена.' : 'Сервер не передал результат проверки.', gen.valid === true ? 'good' : gen.valid === false ? 'bad' : ''));
   const r = state.report;
@@ -265,13 +332,23 @@ function renderVerification() {
   }
   const unavailable = $('verify-unavailable'); unavailable.hidden = state.health?.verification_available === true;
   unavailable.textContent = state.health ? state.health.verification_reason || 'Безопасная проверка пока не подключена. Файлы можно посмотреть и скачать.' : 'Доступность проверки не подтверждена. Обновите статус сервера.';
+  if (state.health?.verification_available !== true) {
+    $('verify-button').textContent = 'Проверка недоступна';
+  } else {
+    $('verify-button').textContent = 'Запустить проверку';
+  }
   renderControls();
 }
 function renderWarnings() {
   const warnings = state.generation?.warnings ?? state.model?.warnings ?? [];
   const items = Array.isArray(warnings) ? warnings : [];
   $('warnings-panel').hidden = !items.length || state.stage === 0; $('warning-count').textContent = items.length;
-  $('warnings-list').replaceChildren(...items.map(w => el('li', typeof w === 'string' ? w : JSON.stringify(w))));
+  $('warnings-list').replaceChildren(...items.map(w => {
+    const message = typeof w === 'string' ? w : JSON.stringify(w);
+    const item = el('li');
+    item.append(el('strong', message), el('span', warningAdvice(message)));
+    return item;
+  }));
 }
 function render() {
   const stage = state.stage; $('page-title').textContent = headings[stage][0]; $('page-description').textContent = headings[stage][1];

@@ -68,6 +68,12 @@ input::placeholder{color:#8d9db6}
 .field-hint{font-size:.75rem;line-height:1.55;color:var(--muted);margin:8px 0 18px}
 .source-summary{margin-top:17px;color:var(--muted);font-size:.8125rem;overflow-wrap:anywhere}
 .source-summary strong{display:block;color:var(--text);font-weight:500}
+.source-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.status-pill{display:inline-flex;align-items:center;min-height:24px;border:1px solid var(--border);border-radius:14px;padding:2px 8px;font-size:.72rem;color:var(--muted);background:#0e1728}
+.status-pill.good{border-color:#2f604d;color:var(--success);background:#10251f}
+.status-pill.warn{border-color:#5c4b34;color:var(--warning);background:#241d18}
+.status-pill.bad{border-color:#704653;color:var(--error);background:#281821}
+.status-pill.neutral{color:#c4cee3}
 .panel-divider{height:1px;background:var(--border);margin:22px 0}
 .endpoint-list,.file-list{display:grid;gap:7px}
 .endpoint-button,.file-button{display:block;width:100%;text-align:left;padding:10px;border:1px solid var(--border);border-radius:7px;background:transparent;overflow-wrap:anywhere;font-size:.8125rem;line-height:1.5}
@@ -108,12 +114,25 @@ input::placeholder{color:#8d9db6}
 .mono{font-family:ui-monospace,Consolas,monospace;font-size:.8125rem}
 .empty-content{padding:25px 0;color:var(--muted);font-size:.9375rem}
 .inline-note{margin:19px 0;border:1px solid var(--border);border-left:3px solid var(--warning);padding:13px 15px;border-radius:6px;color:var(--muted);font-size:.875rem;overflow-wrap:anywhere}
+.readiness-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}
+.metric{border:1px solid var(--border);border-radius:8px;padding:12px;background:#0e1728;min-width:0}
+.metric span,.metric small{display:block;color:var(--muted);font-size:.75rem;line-height:1.45;overflow-wrap:anywhere}
+.metric strong{display:block;margin:4px 0;font-size:.95rem;font-weight:550;overflow-wrap:anywhere}
+.metric.good{border-color:#2d5e4b;background:#10251f}
+.metric.warn{border-color:#5c4b34;background:#241d18}
+.metric.bad{border-color:#704653;background:#281821}
+.next-step-panel{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;border:1px solid #393f5c;background:#111b2d;border-radius:8px;padding:14px 16px}
+.next-step-panel strong{display:block;font-size:.92rem;font-weight:550}
+.next-step-panel p{margin-top:4px;color:var(--muted);font-size:.8125rem;line-height:1.55}
 .warnings-panel{border:1px solid #56452e;border-radius:10px;background:#1b1b22;margin-top:17px;padding:17px 20px}
 .warning-heading{display:flex;align-items:center;gap:10px;color:var(--warning)}
 .warning-heading h2{font-size:.875rem;font-weight:500}
 .warning-heading>span:last-child{font-size:.75rem;padding:1px 7px;border:1px solid #5c4b34;border-radius:5px;margin-left:auto}
-.warnings-panel ul{padding-left:19px;margin:10px 0 0;color:#ddc9a8;font-size:.8125rem}
-.warnings-panel li{margin-top:7px;overflow-wrap:anywhere}
+.warnings-panel ul{list-style:none;padding:0;margin:10px 0 0;color:#ddc9a8;font-size:.8125rem}
+.warnings-panel li{margin-top:10px;border-top:1px solid #4b3e2f;padding-top:10px;overflow-wrap:anywhere}
+.warnings-panel li:first-child{border-top:0;padding-top:0}
+.warnings-panel li strong{display:block;color:#f0d9b2;font-weight:500}
+.warnings-panel li span{display:block;color:#bdab90;margin-top:4px;line-height:1.55}
 .action-footer{display:flex;gap:15px;justify-content:space-between;align-items:center;margin-top:22px;flex-wrap:wrap}
 .action-footer>.muted{font-size:.8125rem}
 .footer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
@@ -174,6 +193,7 @@ main{padding:23px}
 .brand-mark{width:29px;height:31px;font-size:1.3rem}
 .page-heading{margin-top:28px}
 .workspace{grid-template-columns:240px minmax(0,1fr)}
+.readiness-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:700px){main{padding:20px 16px}
 .workspace{grid-template-columns:1fr}
@@ -188,6 +208,8 @@ main{padding:23px}
 .tabs{gap:20px}
 .panel-content{min-height:0}
 .output-preview{gap:12px}
+.readiness-grid{grid-template-columns:1fr}
+.next-step-panel{align-items:stretch;flex-direction:column}
 .topbar{font-size:.75rem}
 .breadcrumb{gap:7px}
 .action-footer{align-items:stretch}

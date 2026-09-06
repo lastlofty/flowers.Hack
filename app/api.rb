@@ -137,8 +137,10 @@ module Paybridge
     end
 
     get '/api/health' do
-      json_response(status: 'ok', verification_available: settings.verification_runner.available?,
-                    request_id: @request_id)
+      available = settings.verification_runner.available?
+      reason = available ? nil : 'Docker-среда проверки не найдена. Генерация и скачивание файлов доступны.'
+      json_response(status: 'ok', verification_available: available,
+                    verification_reason: reason, request_id: @request_id)
     end
 
     post '/api/validate' do
