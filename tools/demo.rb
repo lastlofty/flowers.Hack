@@ -14,7 +14,13 @@ providers = [
   { spec: 'examples/europay_api.yaml',  provider: 'europay' },
   { spec: 'examples/manualpay_api.yaml', provider: 'manualpay' }
 ]
-providers << { spec: 'examples/real/yookassa.yaml', provider: 'yookassa' } if File.exist?('examples/real/yookassa.yaml')
+# Реальные боевые спеки (официальные источники) — если скачаны локально.
+real = {
+  'yookassa' => 'examples/real/yookassa.yaml',
+  'adyen'    => 'examples/real/adyen_checkout.yaml',
+  'stripe'   => 'examples/real/stripe.yaml'
+}
+real.each { |provider, spec| providers << { spec: spec, provider: provider } if File.exist?(spec) }
 
 results = providers.map { |e| Paybridge::HtmlReport.analyze(e[:spec], e[:provider]) }
 

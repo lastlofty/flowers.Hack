@@ -12,4 +12,8 @@ echo "ЮKassa -> $dir/yookassa.yaml"
 curl -sL -o "$dir/yookassa.yaml" \
   "https://yookassa.ru/developers/api/yookassa-openapi-specification.yaml"
 
+echo "Adyen Checkout -> $dir/adyen_checkout.yaml"
+curl -sL -o "$dir/adyen_checkout.yaml" \
+  "https://raw.githubusercontent.com/Adyen/adyen-openapi/main/yaml/CheckoutService-v71.yaml"
+
 echo "Готово. Проверить: ruby exe/integrate validate --spec $dir/yookassa.yaml --provider yookassa"
