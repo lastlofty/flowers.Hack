@@ -59,11 +59,11 @@ module Paybridge
   end
 
   # Главный фасад: спецификация -> { имя_файла => содержимое }.
-  def self.generate(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+  def self.generate(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil, overrides: nil)
     validate_provider!(provider)
     config    = load_config(config_path)
-    overrides = load_overrides(overrides_path)
-    spec      = SpecParser.new(spec_path, provider, config, overrides).parse
+    resolved_overrides = overrides || load_overrides(overrides_path)
+    spec      = SpecParser.new(spec_path, provider, config, resolved_overrides).parse
     unless spec.create_endpoint
       raise GenerationError, 'В спецификации не найден POST-метод создания операции'
     end
@@ -95,11 +95,11 @@ module Paybridge
 
   # Dry-run: только разбор спецификации, без генерации файлов.
   # Для эндпоинта POST /api/validate (превью «что распознано»).
-  def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil)
+  def self.parse_only(spec_path:, provider:, config_path: DEFAULT_CONFIG, overrides_path: nil, overrides: nil)
     validate_provider!(provider)
     config    = load_config(config_path)
-    overrides = load_overrides(overrides_path)
-    spec      = SpecParser.new(spec_path, provider, config, overrides).parse
+    resolved_overrides = overrides || load_overrides(overrides_path)
+    spec      = SpecParser.new(spec_path, provider, config, resolved_overrides).parse
 
     model_for(spec, provider)
   rescue SpecParser::ParseError => e

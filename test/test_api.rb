@@ -92,6 +92,29 @@ class APITest < Minitest::Test
     assert_equal before, Dir.glob(File.join(storage, 'int_*')).sort
   end
 
+  def test_validate_accepts_manual_overrides
+    overrides = JSON.generate(
+      amount_unit: 'minor',
+      signature_encoding: 'hex',
+      required_if: { bank_code: 'sbp', card_number: 'card' }
+    )
+
+    post '/api/validate', spec: spec_upload, provider: 'novapay', overrides: overrides
+
+    assert_equal 200, last_response.status
+    warnings = JSON.parse(last_response.body)['warnings'].join("\n")
+    refute_includes warnings, 'Единица суммы'
+    refute_includes warnings, 'Кодировка подписи'
+    refute_includes warnings, 'Условная обязательность'
+  end
+
+  def test_generate_rejects_invalid_overrides_json
+    post '/api/integrations', spec: spec_upload, provider: 'novapay', overrides: '{bad'
+
+    assert_equal 400, last_response.status
+    assert_equal 'invalid_overrides', JSON.parse(last_response.body).dig('error', 'code')
+  end
+
   def test_validate_bad_yaml_returns_422
     file = Tempfile.new(['bad', '.yaml'])
     file.write("openapi: [unclosed\n")

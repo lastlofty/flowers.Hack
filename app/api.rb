@@ -12,6 +12,7 @@ module Paybridge
   # HTTP-обёртка: ограничивает вход, время операций и изолирует verify.
   class API < Sinatra::Base
     MAX_SPEC_BYTES = 1_000_000
+    MAX_OVERRIDES_BYTES = 20_000
     MAX_HTTP_BODY_BYTES = MAX_SPEC_BYTES + 65_536
     PROVIDER_RE = Paybridge::PROVIDER_RE
 
@@ -75,6 +76,23 @@ module Paybridge
         api_error!('too_large', 'Файл больше 1 МБ', 413) if content.nil?
         @log_context = { provider: provider, warning_count: 0 }
         [content, provider]
+      end
+
+      def read_overrides!
+        raw = params[:overrides]
+        return {} if raw.nil? || raw.to_s.strip.empty?
+
+        if raw.to_s.bytesize > MAX_OVERRIDES_BYTES
+          api_error!('overrides_too_large', 'Файл уточнений слишком большой', 413)
+        end
+        parsed = JSON.parse(raw.to_s)
+        unless parsed.is_a?(Hash)
+          api_error!('invalid_overrides', 'Уточнения должны быть JSON-объектом', 400)
+        end
+
+        parsed
+      rescue JSON::ParserError
+        api_error!('invalid_overrides', 'Уточнения должны быть валидным JSON', 400)
       end
 
       def read_limited(io, limit)
@@ -145,8 +163,9 @@ module Paybridge
 
     post '/api/validate' do
       content, provider = read_spec_upload!
+      overrides = read_overrides!
       model = within_generation_timeout do
-        with_temp_spec(content) { |path| Paybridge.parse_only(spec_path: path, provider: provider) }
+        with_temp_spec(content) { |path| Paybridge.parse_only(spec_path: path, provider: provider, overrides: overrides) }
       end
       @log_context[:warning_count] = Array(model[:warnings]).length
       json_response(model.merge(request_id: @request_id))
@@ -158,8 +177,9 @@ module Paybridge
 
     post '/api/integrations' do
       content, provider = read_spec_upload!
+      overrides = read_overrides!
       generation = within_generation_timeout do
-        with_temp_spec(content) { |path| Paybridge.generate(spec_path: path, provider: provider) }
+        with_temp_spec(content) { |path| Paybridge.generate(spec_path: path, provider: provider, overrides: overrides) }
       end
       integration = store.save(generation)
       @log_context.merge!(integration_id: integration.id, warning_count: integration.warnings.length)

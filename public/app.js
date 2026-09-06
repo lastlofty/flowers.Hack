@@ -3,7 +3,8 @@ import { validateFile, formatBytes, normalizeReport, tokensFor } from './ui-core
 const $ = id => document.getElementById(id);
 const state = { file: null, model: null, generation: null, report: null, stage: 0,
   tab: 'methods', endpoint: 0, activeFile: null, fileText: null, fileLoading: false,
-  fileError: '', busy: false, health: null, revision: 0, operation: null, fileRequest: null };
+  fileError: '', busy: false, health: null, revision: 0, operation: null, fileRequest: null,
+  clarificationPanel: null, overrides: {} };
 const headings = [
   ['Начните со спецификации', 'Загрузите OpenAPI-файл вашего платёжного провайдера.'],
   ['Посмотрите, что распознано', 'Методы, авторизация и сопоставления из вашей спецификации.'],
@@ -43,6 +44,11 @@ function invalidate() {
     endpoint: 0, activeFile: null, fileText: null, fileLoading: false, fileError: '' });
   clearError(); render();
 }
+function resetClarifications() {
+  state.clarificationPanel?.remove();
+  state.clarificationPanel = null;
+  state.overrides = {};
+}
 function shouldAutofillProvider() {
   const value = $('provider').value.trim();
   return value === '' || value === 'novapay';
@@ -71,6 +77,7 @@ async function providerFromFile(file) {
 async function chooseFile(file) {
   if (state.busy) return;
   const canAutofill = shouldAutofillProvider();
+  resetClarifications();
   invalidate(); state.file = null;
   const error = validateFile(file);
   if (error) { $('spec-file').value = ''; showError(error, 'Проверьте файл'); }
@@ -124,17 +131,46 @@ async function health() {
     state.health = null; $('health-dot').className = 'connection-dot offline'; $('health-text').textContent = 'Нет связи · повторить';
   } finally { $('health-button').disabled = false; renderVerification(); renderControls(); }
 }
-function upload() { const data = new FormData(); data.append('spec', state.file); data.append('provider', $('provider').value.trim()); return data; }
+function collectOverrides() {
+  const panel = state.clarificationPanel;
+  const overrides = {};
+  if (!panel || panel.hidden) return state.overrides || overrides;
+
+  const amountUnit = panel.querySelector('[name="amount_unit"]')?.value;
+  const signatureEncoding = panel.querySelector('[name="signature_encoding"]')?.value;
+  if (amountUnit) overrides.amount_unit = amountUnit;
+  if (signatureEncoding) overrides.signature_encoding = signatureEncoding;
+
+  const requiredIf = {};
+  panel.querySelectorAll('[data-required-field]').forEach(input => {
+    const value = input.value.trim();
+    if (value) requiredIf[input.dataset.requiredField] = value;
+  });
+  if (Object.keys(requiredIf).length) overrides.required_if = requiredIf;
+  return overrides;
+}
+function rememberOverrides() {
+  state.overrides = collectOverrides();
+}
+function upload(overrides = collectOverrides()) {
+  const data = new FormData();
+  data.append('spec', state.file);
+  data.append('provider', $('provider').value.trim());
+  if (Object.keys(overrides).length) data.append('overrides', JSON.stringify(overrides));
+  return data;
+}
 async function analyze(event) {
   event?.preventDefault();
   if (state.busy) return;
   if (!state.file) { showError('Выберите YAML-файл со спецификацией.', 'Добавьте файл'); return; }
   if (!$('source-form').reportValidity()) return;
+  const overrides = collectOverrides();
+  state.overrides = overrides;
   invalidate();
   const revision = state.revision, controller = new AbortController(); state.operation = controller;
   setBusy(true, 'Разбираем спецификацию…');
   try {
-    const model = await request('/api/validate', { method: 'POST', body: upload(), signal: controller.signal });
+    const model = await request('/api/validate', { method: 'POST', body: upload(overrides), signal: controller.signal });
     if (revision !== state.revision) return;
     if (!Array.isArray(model.endpoints)) throw new Error('В ответе сервера отсутствует список методов API.');
     state.model = model; state.stage = 1; render();
@@ -144,9 +180,11 @@ async function analyze(event) {
 async function generate() {
   if (state.busy || !state.model || state.generation) return;
   const revision = state.revision, controller = new AbortController(); state.operation = controller;
+  const overrides = collectOverrides();
+  state.overrides = overrides;
   clearError(); setBusy(true, 'Генерируем файлы и проверяем Ruby-синтаксис…');
   try {
-    const data = await request('/api/integrations', { method: 'POST', body: upload(), signal: controller.signal });
+    const data = await request('/api/integrations', { method: 'POST', body: upload(overrides), signal: controller.signal });
     if (revision !== state.revision) return;
     if (typeof data.id !== 'string' || !Array.isArray(data.files) || data.files.some(f => typeof f !== 'string')) throw new Error('Сервер не вернул корректный список файлов интеграции.');
     state.generation = data; state.report = data.verification?.cases ? normalizeReport(data.verification) : null; state.stage = 2;
@@ -226,6 +264,74 @@ function warningAdvice(message) {
   if (text.includes('несколько методов')) return 'На защите покажите, какой endpoint выбран, или уточните выбор вручную перед финальной интеграцией.';
   return 'Проверьте это место перед подключением к реальному провайдеру.';
 }
+function requiredFieldsFromWarnings(warnings) {
+  const fields = [];
+  warnings.forEach(message => {
+    const match = String(message).match(/поля '([^']+)'/i);
+    if (match && !fields.includes(match[1])) fields.push(match[1]);
+  });
+  return fields;
+}
+function ensureClarificationPanel() {
+  if (state.clarificationPanel) return state.clarificationPanel;
+  const panel = el('section', null, 'clarification-panel');
+  panel.id = 'clarification-panel';
+  const submit = $('analyze-button');
+  submit.before(panel);
+  state.clarificationPanel = panel;
+  return panel;
+}
+function renderClarifications() {
+  const warnings = state.model?.warnings || [];
+  const panel = ensureClarificationPanel();
+  panel.replaceChildren();
+  panel.hidden = !state.model || !warnings.length || !!state.generation;
+  if (panel.hidden) return;
+
+  panel.append(el('strong', 'Нужны уточнения'));
+  panel.append(el('p', 'Разбор нашёл места, где OpenAPI не даёт точного ответа. Заполните поля перед генерацией, чтобы убрать догадки из результата.'));
+
+  if (warnings.some(message => String(message).includes('amount_unit'))) {
+    const label = el('label', null, 'clarification-field');
+    label.append(el('span', 'Единица суммы'));
+    const select = el('select');
+    select.name = 'amount_unit';
+    select.append(new Option('Не уточнять', ''), new Option('minor: копейки/центы', 'minor'), new Option('major: рубли/доллары', 'major'));
+    select.value = state.overrides.amount_unit || '';
+    select.onchange = rememberOverrides;
+    label.append(select);
+    panel.append(label);
+  }
+
+  if (warnings.some(message => String(message).includes('signature_encoding'))) {
+    const label = el('label', null, 'clarification-field');
+    label.append(el('span', 'Кодировка подписи webhook'));
+    const select = el('select');
+    select.name = 'signature_encoding';
+    select.append(new Option('Не уточнять', ''), new Option('hex', 'hex'), new Option('base64', 'base64'));
+    select.value = state.overrides.signature_encoding || '';
+    select.onchange = rememberOverrides;
+    label.append(select);
+    panel.append(label);
+  }
+
+  requiredFieldsFromWarnings(warnings).forEach(field => {
+    const label = el('label', null, 'clarification-field');
+    label.append(el('span', `Когда обязательно поле ${field}`));
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = field.includes('card') ? 'card' : field.includes('bank') ? 'sbp' : 'например, sbp';
+    input.dataset.requiredField = field;
+    input.value = state.overrides.required_if?.[field] || '';
+    input.oninput = rememberOverrides;
+    label.append(input);
+    panel.append(label);
+  });
+  const apply = el('button', 'Применить уточнения', 'button small full');
+  apply.type = 'button';
+  apply.onclick = () => { rememberOverrides(); analyze(); };
+  panel.append(apply);
+}
 function renderReadiness(target, model, generation = null) {
   const warnings = generation?.warnings ?? model?.warnings ?? [];
   const createFound = model?.endpoints?.some(e => e.role === 'create');
@@ -275,6 +381,7 @@ function renderSource() {
     button.append(el('span', endpoint.method, `method ${endpoint.method === 'GET' ? 'get' : endpoint.method === 'POST' ? '' : 'other'}`), el('span', endpoint.path, 'endpoint-path'), el('small', roles[endpoint.role] || 'Неизвестная роль'));
     button.onclick = () => { state.endpoint = index; state.tab = 'methods'; state.stage = 1; render(); }; list.append(button);
   });
+  renderClarifications();
 }
 function renderModel() {
   const container = $('model-content'); container.replaceChildren(); if (!state.model) return;
@@ -394,7 +501,8 @@ function render() {
   const archive = $('download-archive'); archive.hidden = !state.generation;
   if (state.generation) { archive.href = `/api/integrations/${encodeURIComponent(state.generation.id)}/archive`; archive.download = `integration_${state.generation.provider}.zip`; }
   else archive.removeAttribute('href');
-  $('footer-description').textContent = state.generation ? `Интеграция ${state.generation.id}` : state.model?.endpoints.some(e => e.role === 'create') ? 'Изучите предупреждения перед генерацией.' : 'Не найден метод создания операции. Генерация недоступна.';
+  const warningCount = state.model?.warnings?.length || 0;
+  $('footer-description').textContent = state.generation ? `Интеграция ${state.generation.id}` : state.model?.endpoints.some(e => e.role === 'create') ? warningCount ? 'Заполните уточнения или изучите предупреждения перед генерацией.' : 'Можно генерировать интеграцию.' : 'Не найден метод создания операции. Генерация недоступна.';
   renderSource(); renderModel(); renderFiles(); renderVerification(); renderWarnings(); renderControls();
 }
 

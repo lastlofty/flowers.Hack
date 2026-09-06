@@ -1,7 +1,7 @@
 :root{color-scheme:dark;--bg:#0a1020;--panel:#101929;--raised:#162137;--border:#25324a;--text:#eef1fa;--muted:#a2afc7;--accent:#a698ff;--primary:#6955e8;--tint:#201f3d;--success:#72d9af;--warning:#edc583;--error:#ffb3b9;font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text)}
-button,input{font:inherit}
+button,input,select{font:inherit}
 button{cursor:pointer;color:inherit}
 a{color:inherit;text-decoration:none}
 button:disabled{opacity:.45;cursor:not-allowed}
@@ -63,9 +63,15 @@ main{padding:26px clamp(20px,3vw,48px) 18px;max-width:1640px;width:100%;margin:0
 .selected-file span:not(.file-icon){display:block;font-size:.75rem;color:var(--muted)}
 .file-icon{font-size:.75rem;background:var(--tint);border:1px solid #494365;padding:8px 4px;border-radius:5px;color:#c4b9ff}
 .field-label{display:block;font-size:.875rem;margin:20px 0 8px}
-input[type=text]{width:100%;background:var(--bg);border:1px solid #384661;color:var(--text);padding:10px 12px;border-radius:6px;min-height:43px}
+input[type=text],select{width:100%;background:var(--bg);border:1px solid #384661;color:var(--text);padding:10px 12px;border-radius:6px;min-height:43px}
 input::placeholder{color:#8d9db6}
 .field-hint{font-size:.75rem;line-height:1.55;color:var(--muted);margin:8px 0 18px}
+.clarification-panel{border:1px solid #56452e;border-radius:8px;background:#1b1b22;margin:16px 0;padding:13px}
+.clarification-panel>strong{display:block;color:var(--warning);font-size:.9rem;font-weight:550}
+.clarification-panel>p{color:#bdab90;font-size:.75rem;line-height:1.55;margin:5px 0 12px}
+.clarification-field{display:block;margin-top:10px}
+.clarification-field span{display:block;color:#f0d9b2;font-size:.75rem;margin-bottom:5px;line-height:1.4}
+.clarification-field input,.clarification-field select{min-height:38px;padding:8px 10px;font-size:.8125rem}
 .source-summary{margin-top:17px;color:var(--muted);font-size:.8125rem;overflow-wrap:anywhere}
 .source-summary strong{display:block;color:var(--text);font-weight:500}
 .source-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
