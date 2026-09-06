@@ -43,12 +43,47 @@ function invalidate() {
     endpoint: 0, activeFile: null, fileText: null, fileLoading: false, fileError: '' });
   clearError(); render();
 }
-function chooseFile(file) {
+function shouldAutofillProvider() {
+  const value = $('provider').value.trim();
+  return value === '' || value === 'novapay';
+}
+function providerFromFilename(name) {
+  const base = name.replace(/\.(ya?ml)$/i, '').replace(/(?:^|[_-])(openapi|swagger|api|spec|schema|provider)(?:$|[_-])/gi, '_');
+  return sanitizeProvider(base);
+}
+function sanitizeProvider(value) {
+  const genericWords = new Set(['api', 'openapi', 'swagger', 'spec', 'schema', 'provider', 'payment', 'payments', 'payout', 'payouts', 'service']);
+  let result = value.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  result = result.split('_').filter(part => part && !genericWords.has(part)).join('_');
+  if (!/^[a-z]/.test(result)) result = result ? `p_${result}` : '';
+  return result.slice(0, 33);
+}
+async function providerFromFile(file) {
+  const fallback = providerFromFilename(file.name);
+  try {
+    const head = await file.slice(0, 120000).text();
+    const title = head.match(/^\s*title:\s*["']?([^"'\n#]+)["']?\s*(?:#.*)?$/im)?.[1];
+    return sanitizeProvider(title || fallback) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+async function chooseFile(file) {
   if (state.busy) return;
+  const canAutofill = shouldAutofillProvider();
   invalidate(); state.file = null;
   const error = validateFile(file);
   if (error) { $('spec-file').value = ''; showError(error, 'Проверьте файл'); }
-  else state.file = file;
+  else {
+    state.file = file;
+    if (canAutofill) {
+      const provider = await providerFromFile(file);
+      if (provider) {
+        $('provider').value = provider;
+        notify(`Имя провайдера заполнено: ${provider}`);
+      }
+    }
+  }
   render();
 }
 
