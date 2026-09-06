@@ -522,6 +522,8 @@ module Paybridge
           return {} if seen.include?(ref)
 
           resolve_deep(resolve_ref(ref), seen + [ref], depth + 1)
+        elsif node['allOf'].is_a?(Array)
+          merge_all_of(node, seen, depth)
         else
           node.each_with_object({}) { |(k, v), acc| acc[k] = resolve_deep(v, seen, depth + 1) }
         end
@@ -530,6 +532,37 @@ module Paybridge
       else
         node
       end
+    end
+
+    # Простое слияние allOf: объединяем properties/required, наследуем type/enum.
+    # Полный oneOf/anyOf не обещаем — но allOf на реальных спеках встречается часто.
+    def merge_all_of(node, seen, depth)
+      merged = {}
+      node['allOf'].each do |member|
+        resolved = resolve_deep(member, seen, depth + 1)
+        merged = merge_schema(merged, resolved) if resolved.is_a?(Hash)
+      end
+      node.each do |key, value|
+        next if key == 'allOf' || merged.key?(key)
+
+        merged[key] = resolve_deep(value, seen, depth + 1)
+      end
+      merged
+    end
+
+    def merge_schema(base, add)
+      result = base.dup
+      add.each do |key, value|
+        result[key] =
+          if key == 'properties' && base['properties'].is_a?(Hash) && value.is_a?(Hash)
+            base['properties'].merge(value)
+          elsif key == 'required' && base['required'].is_a?(Array) && value.is_a?(Array)
+            (base['required'] + value).uniq
+          else
+            value
+          end
+      end
+      result
     end
 
     def dig(node, *keys)

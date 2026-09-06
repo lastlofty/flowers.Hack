@@ -69,13 +69,23 @@ module Paybridge
 
       def value_expr(name, prop, depth, _group)
         if prop['type'] == 'object' || prop['properties']
+          if monetary_amount?(name, prop)
+            return emit_amount_object(name, prop)
+          end
+
           type_enum = nested_type_enum(prop)
+          group = object_group(prop)
           if type_enum.size > 1
             # Несколько способов (sbp/card): выбор в рантайме через request_method.
             record_recipient_spec(name, prop, type_enum)
             'build_recipient(operation, requisite, request_method)'
+          elsif group
+            emit_nested(prop, depth + 1, group)
           else
-            emit_nested(prop, depth + 1, object_group(prop))
+            # Вложенный объект без дискриминатора type — не знаем, как сопоставить.
+            @report.warn("Вложенный объект '#{name}' без явного type не сопоставлен — nil. " \
+                         'Задайте правило (overrides) или расширьте маппер.')
+            'nil'
           end
         elsif amount_field?(name, prop)
           record_amount(name, prop)
@@ -205,6 +215,40 @@ module Paybridge
             "Условная обязательность поля '#{name}' выведена из текста description. " \
             'Уточните overrides.required_if при необходимости.'
           )
+        end
+      end
+
+      # Сумма как объект { value, currency } (напр. ЮKassa), а не скаляр.
+      def monetary_amount?(name, prop)
+        name.to_s.match?(AMOUNT_HINT) && (prop['properties'] || {}).key?('value')
+      end
+
+      # Литерал amount-объекта: value как строка с 2 знаками, currency из enum.
+      def emit_amount_object(name, prop)
+        props = prop['properties'] || {}
+        value_field = props.key?('value') ? 'value' : props.keys.first
+        currency_field = props.key?('currency') ? 'currency' : nil
+
+        @amount = { field: name, minor_units: false, min_native: nil, object: true }
+
+        pairs = ["#{Safe.hash_key(value_field)} format('%.2f', operation.amount)"]
+        if currency_field
+          pairs << "#{Safe.hash_key(currency_field)} #{amount_currency_expr(props[currency_field])}"
+        end
+        "{ #{pairs.join(', ')} }"
+      end
+
+      def amount_currency_expr(currency_prop)
+        enum = currency_prop.is_a?(Hash) ? currency_prop['enum'] : nil
+        return Safe.rb(enum.first) if enum.is_a?(Array) && enum.size == 1
+
+        if enum.is_a?(Array) && !enum.empty?
+          @currency = enum.first
+          @report.warn("Валюта суммы: несколько значений enum — принято '#{enum.first}'. " \
+                       'Уточните при необходимости.')
+          Safe.rb(enum.first)
+        else
+          "operation.currency || 'RUB'"
         end
       end
 
