@@ -11,7 +11,8 @@ providers = [
   { spec: 'examples/provider_api.yaml', provider: 'novapay' },
   { spec: 'examples/bluepay_api.yaml',  provider: 'bluepay' },
   { spec: 'examples/swiftpay_api.yaml', provider: 'swiftpay' },
-  { spec: 'examples/europay_api.yaml',  provider: 'europay' }
+  { spec: 'examples/europay_api.yaml',  provider: 'europay' },
+  { spec: 'examples/manualpay_api.yaml', provider: 'manualpay' }
 ]
 providers << { spec: 'examples/real/yookassa.yaml', provider: 'yookassa' } if File.exist?('examples/real/yookassa.yaml')
 

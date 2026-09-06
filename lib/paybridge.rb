@@ -31,7 +31,7 @@ module Paybridge
   BASE_SERVICE   = File.expand_path('paybridge/templates/base_service.rb', __dir__)
 
   # Результат генерации, который потребляет бэкенд.
-  Generation = Struct.new(:provider, :files, :warnings, :endpoints, :model, keyword_init: true)
+  Generation = Struct.new(:provider, :files, :warnings, :todos, :endpoints, :model, keyword_init: true)
 
   # Ошибка разбора/генерации — бэкенд оборачивает её в HTTP 422.
   class GenerationError < StandardError; end
@@ -84,6 +84,7 @@ module Paybridge
       provider: provider,
       files: files,
       warnings: spec.report.warnings,
+      todos: spec.report.todos.map(&:to_h),
       endpoints: spec.endpoints.map do |e|
         { method: e.http_method.upcase, path: e.path, role: e.role.to_s }
       end,
@@ -129,7 +130,8 @@ module Paybridge
         signature_header: spec.webhook.signature_header,
         signature_alg: spec.webhook.signature_alg
       },
-      warnings: spec.report.warnings
+      warnings: spec.report.warnings,
+      todos: spec.report.todos.map(&:to_h)
     }
   end
 end

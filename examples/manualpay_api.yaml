@@ -1,0 +1,103 @@
+openapi: 3.0.3
+info:
+  title: ManualPay API
+  version: "1.0.0"
+  description: >
+    Демонстрационный провайдер: часть обязательных полей нельзя вывести из
+    спецификации автоматически (нет соответствия в модели операции). Генератор
+    помечает их как «заполнить вручную» — с подсказкой и TODO-маркером в коде.
+servers:
+  - url: https://api.manualpay.example/v1
+paths:
+  /payments:
+    post:
+      operationId: createPayment
+      summary: Создать платёж
+      security:
+        - ApiKey: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency, order_id, merchant_category, statement_descriptor]
+              properties:
+                amount:
+                  type: integer
+                  minimum: 100
+                  description: Сумма в копейках
+                currency:
+                  type: string
+                  enum: [RUB]
+                order_id:
+                  type: string
+                  description: Ваш идентификатор заказа
+                merchant_category:
+                  type: string
+                  description: MCC-категория торговой точки (не выводится из операции)
+                  example: "5411"
+                statement_descriptor:
+                  type: string
+                  description: Строка в выписке плательщика (задаётся мерчантом)
+                  example: "MANUALPAY*ORDER"
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [pending, succeeded, canceled] }
+  /payments/{payment_id}:
+    get:
+      operationId: getPayment
+      summary: Статус платежа
+      security:
+        - ApiKey: []
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [pending, succeeded, canceled] }
+  /webhooks/manualpay:
+    post:
+      operationId: webhook
+      summary: Уведомление о статусе
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, id, status]
+              properties:
+                event: { type: string, enum: [payment.succeeded, payment.canceled] }
+                id: { type: string }
+                status: { type: string, enum: [pending, succeeded, canceled] }
+      responses:
+        '200': { description: ok }
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key

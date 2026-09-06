@@ -213,11 +213,27 @@ module Paybridge
       puts 'Output:'
       written.each { |path| puts "  #{path}" }
 
+      print_manual_todos(spec)
+
       return unless spec.report.any?
 
       puts
       puts "\e[33mПредупреждения (#{spec.report.warnings.size}):\e[0m"
       spec.report.each { |w| puts "  - #{w}" }
+    end
+
+    # Поля, которые нельзя вывести из спеки — их заполняет разработчик вручную.
+    # Показываем отдельным заметным блоком с подсказкой и местом в коде.
+    def print_manual_todos(spec)
+      return unless spec.report.todos?
+
+      puts
+      puts "\e[31m❗ Заполните вручную (#{spec.report.todos.size}):\e[0m " \
+           'в сгенерированном коде эти поля помечены комментарием TODO(PayBridge)'
+      spec.report.todos.each do |todo|
+        puts "  • \e[1m#{todo.field}\e[0m (#{todo.where})"
+        puts "      #{todo.hint}"
+      end
     end
 
     def say(message)

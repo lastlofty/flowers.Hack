@@ -58,8 +58,12 @@ module Paybridge
         props.each do |name, prop|
           next if skip_field?(name, prop, group)
 
-          value = value_expr(name, prop, depth, group)
-          lines << "#{indent(depth)}#{Safe.hash_key(name)} #{value}"
+          @pending_comment = nil
+          value = value_expr(name, prop, depth, group, required.include?(name))
+          # Комментарий-маркер ставим НАД полем (не в хвост), иначе запятая
+          # объединения хэша уедет внутрь комментария и сломает синтаксис.
+          prefix = @pending_comment ? "#{indent(depth)}# #{@pending_comment}\n" : ''
+          lines << "#{prefix}#{indent(depth)}#{Safe.hash_key(name)} #{value}"
         end
 
         body = lines.join(",\n")
@@ -67,7 +71,7 @@ module Paybridge
         "{\n#{body}\n#{close_indent(depth)}}#{suffix}"
       end
 
-      def value_expr(name, prop, depth, _group)
+      def value_expr(name, prop, depth, _group, required)
         if prop['type'] == 'object' || prop['properties']
           if monetary_amount?(name, prop)
             return emit_amount_object(name, prop)
@@ -83,9 +87,9 @@ module Paybridge
             emit_nested(prop, depth + 1, group)
           else
             # Вложенный объект без дискриминатора type — не знаем, как сопоставить.
-            @report.warn("Вложенный объект '#{name}' без явного type не сопоставлен — nil. " \
-                         'Задайте правило (overrides) или расширьте маппер.')
-            'nil'
+            manual_field(name,
+                         'вложенный объект без поля type — соберите хэш вручную ' \
+                         'из operation/requisite или задайте overrides', required)
           end
         elsif amount_field?(name, prop)
           record_amount(name, prop)
@@ -101,11 +105,45 @@ module Paybridge
           "requisite.dig(#{Safe.rb(@current_group)}, #{Safe.rb(name)})"
         else
           # Поле верхнего уровня без известного правила сопоставления НЕ превращаем
-          # в operation.<имя> (вызов несуществующего метода). Явно nil + предупреждение.
-          @report.warn("Поле запроса '#{name}' не сопоставлено — отправляется nil. " \
-                       'Задайте правило (overrides) или расширьте маппер.')
-          'nil'
+          # в operation.<имя> (вызов несуществующего метода). Оставляем nil и
+          # помечаем как поле для ручного заполнения.
+          manual_field(name, manual_hint(prop), required)
         end
+      end
+
+      # Поле, которое не выводится из спеки:
+      #   * required -> структурированный TODO (провайдер требует, надо заполнить);
+      #   * optional -> мягкое предупреждение (nil уберётся .compact при отправке).
+      # В обоих случаях возвращает nil и ставит комментарий-маркер над строкой.
+      def manual_field(name, hint, required)
+        where = @current_group ? "requisite[#{@current_group.inspect}]" : 'create_request payload'
+        if required
+          @report.todo(field: name, where: where, hint: hint)
+          @pending_comment = "TODO(PayBridge): заполните '#{name}' вручную — #{hint}"
+        else
+          @report.warn("Необязательное поле '#{name}' не сопоставлено — отправляется nil " \
+                       '(убирается .compact). Заполните вручную при необходимости.')
+          @pending_comment = "optional: '#{name}' не сопоставлено — заполните при необходимости"
+        end
+        'nil'
+      end
+
+      # Подсказка «как заполнить», опираясь на тип/формат поля из спеки.
+      def manual_hint(prop)
+        type = prop['type']
+        fmt  = prop['format']
+        base =
+          case type
+          when 'string'  then fmt ? "строка (#{fmt})" : 'строка'
+          when 'integer', 'number' then 'число'
+          when 'boolean' then 'булево (true/false)'
+          when 'array'   then 'массив'
+          else type ? type.to_s : 'значение'
+        end
+        example = prop['example'] || prop['default']
+        hint = "тип: #{base}; провайдер требует это поле — задайте выражение " \
+               'из operation/requisite или добавьте правило в overrides'
+        example ? "#{hint} (пример: #{example})" : hint
       end
 
       def emit_nested(schema, depth, group)

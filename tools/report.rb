@@ -27,7 +27,8 @@ module Paybridge
       FileUtils.cp(Paybridge::BASE_SERVICE, File.join(dir, 'base_service.rb'))
 
       { provider: provider, model: model, files: gen.files.keys.sort,
-        warnings: gen.warnings, syntax: syntax_ok?(gen.files["#{provider}_service.rb"]),
+        warnings: gen.warnings, todos: gen.todos || [],
+        syntax: syntax_ok?(gen.files["#{provider}_service.rb"]),
         verify: verify(dir) }
     rescue Paybridge::GenerationError => e
       { provider: provider, error: e.message }
@@ -81,27 +82,51 @@ module Paybridge
     end
 
     def render(results)
-      +CSS + "<h1>PayBridge — отчёт по интеграциям</h1>" \
-             "<p class=\"sub\">Сгенерировано #{e(Time.now.strftime('%Y-%m-%d %H:%M'))} · провайдеров: #{results.size}</p>" +
-        summary_table(results) + results.map { |r| card(r) }.join + '</div>'
+      +CSS + "<h1>PayBridge <span class=\"logo\">— отчёт по интеграциям</span></h1>" \
+             "<p class=\"sub\">Сгенерировано #{e(Time.now.strftime('%Y-%m-%d %H:%M'))}</p>" +
+        stat_strip(results) + summary_table(results) + results.map { |r| card(r) }.join + '</div>'
+    end
+
+    # Верхняя полоса ключевых цифр — чтобы картина читалась за секунду.
+    def stat_strip(results)
+      ok = results.reject { |r| r[:error] }
+      syntax_ok = ok.count { |r| r[:syntax] }
+      verify_ok = ok.count { |r| verify_status(r[:verify]) == 'passed' }
+      manual = ok.sum { |r| (r[:todos] || []).size }
+      warns = ok.sum { |r| r[:warnings].size }
+      cells = [
+        ['Провайдеров', results.size, 'neutral'],
+        ['ruby -c OK', "#{syntax_ok}/#{ok.size}", syntax_ok == ok.size ? 'ok' : 'bad'],
+        ['verify passed', "#{verify_ok}/#{ok.size}", verify_ok == ok.size ? 'ok' : 'warn'],
+        ['Заполнить вручную', manual, manual.zero? ? 'ok' : 'warn'],
+        ['Предупреждений', warns, warns.zero? ? 'ok' : 'warn']
+      ]
+      chips = cells.map do |label, value, cls|
+        "<div class=\"stat #{cls}\"><span class=\"stat-n\">#{e(value)}</span>" \
+          "<span class=\"stat-l\">#{e(label)}</span></div>"
+      end.join
+      "<div class=\"strip\">#{chips}</div>"
     end
 
     def summary_table(results)
       rows = results.map do |r|
-        next "<tr><td>#{e(r[:provider])}</td><td colspan=\"5\" class=\"bad\">Ошибка: #{e(r[:error])}</td></tr>" if r[:error]
+        next "<tr><td>#{e(r[:provider])}</td><td colspan=\"6\" class=\"bad\">Ошибка: #{e(r[:error])}</td></tr>" if r[:error]
 
         m = r[:model]
+        manual = (r[:todos] || []).size
+        manual_cell = manual.zero? ? '<td class="ok">—</td>' : "<td>#{badge('partial', "#{manual} ✍")}</td>"
         "<tr>" \
           "<td><b>#{e(r[:provider])}</b></td>" \
           "<td>#{m[:endpoints].size}</td>" \
           "<td>#{e(m.dig(:auth, :type) || '—')}</td>" \
           "<td>#{badge(r[:syntax] ? 'passed' : 'failed', r[:syntax] ? 'Syntax OK' : 'ошибка')}</td>" \
           "<td>#{badge(verify_status(r[:verify]), "#{verify_status(r[:verify])} #{verify_label(r[:verify])}")}</td>" \
+          "#{manual_cell}" \
           "<td>#{r[:warnings].size}</td>" \
           "</tr>"
       end.join
       "<table class=\"summary\"><thead><tr><th>Провайдер</th><th>Методов</th><th>Auth</th>" \
-        "<th>ruby -c</th><th>verify</th><th>Предупр.</th></tr></thead><tbody>#{rows}</tbody></table>" \
+        "<th>ruby -c</th><th>verify</th><th>Вручную</th><th>Предупр.</th></tr></thead><tbody>#{rows}</tbody></table>" \
         '<div class="cards">'
     end
 
@@ -114,8 +139,23 @@ module Paybridge
         "<p class=\"muted\">BASE_URL: #{e(m[:base_url])} · Auth: #{e(m.dig(:auth, :type) || '—')} " \
         "(#{e(m.dig(:auth, :header) || '—')})</p>" +
         endpoints_html(m) + maps_html(m) + webhook_html(m) + verify_html(r[:verify]) +
-        files_html(r[:files]) + warnings_html(r[:warnings]) +
+        manual_html(r[:todos] || []) + files_html(r[:files]) + warnings_html(r[:warnings]) +
         '</section>'
+    end
+
+    # Действенный блок: поля, которые провайдер требует, но их нельзя вывести
+    # из спеки — их заполняет разработчик. Показываем чек-листом с подсказкой.
+    def manual_html(todos)
+      return '' if todos.empty?
+
+      items = todos.map do |t|
+        "<li><label><input type=\"checkbox\"> <code>#{e(t[:field])}</code> " \
+          "<span class=\"muted\">#{e(t[:where])}</span></label>" \
+          "<div class=\"hint\">#{e(t[:hint])}</div></li>"
+      end.join
+      "<div class=\"manual\"><h3>✍ Заполните вручную (#{todos.size})</h3>" \
+        "<p class=\"muted\">В коде эти поля помечены <code>TODO(PayBridge)</code> и отправляются как <code>nil</code>, пока не заполнены.</p>" \
+        "<ul class=\"todo-list\">#{items}</ul></div>"
     end
 
     def endpoints_html(m)
@@ -164,22 +204,43 @@ module Paybridge
     CSS = <<~HTML
       <!doctype html><meta charset="utf-8"><title>PayBridge — отчёт</title>
       <style>
-        :root{color-scheme:light dark}
-        body{font:14px/1.5 system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px}
-        h1{font-size:1.5rem;margin-bottom:2px}.sub{color:#888;margin-top:0}
+        :root{color-scheme:light dark;--line:#8883;--muted:#888;--ok:#17803d;--warn:#b7791f;--bad:#d33;--accent:#3b5bdb}
+        *{box-sizing:border-box}
+        body{font:14px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;max-width:1040px;margin:0 auto;padding:28px 16px 64px}
+        h1{font-size:1.6rem;margin:0 0 2px;letter-spacing:-.01em}
+        h1 .logo{color:var(--muted);font-weight:400}
+        .sub{color:var(--muted);margin:0 0 18px}
         table{border-collapse:collapse;width:100%;margin:6px 0}
-        th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #8883;font-size:13px}
-        .summary th{background:#8881}
-        .card{border:1px solid #8883;border-radius:10px;padding:14px 18px;margin:14px 0}
-        .card h2{font-size:1.15rem;margin:0 0 4px}.muted{color:#888;font-weight:400;font-size:.9em}
-        h3{font-size:.95rem;margin:12px 0 4px}
+        th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px}
+        .summary{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+        .summary th{background:#8881;position:sticky;top:0;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+        .summary tbody tr:hover{background:#8881}
+        /* верхняя полоса цифр */
+        .strip{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+        .stat{flex:1;min-width:130px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+        .stat-n{font-size:1.5rem;font-weight:700;line-height:1}
+        .stat-l{font-size:12px;color:var(--muted)}
+        .stat.ok .stat-n{color:var(--ok)}.stat.warn .stat-n{color:var(--warn)}.stat.bad .stat-n{color:var(--bad)}
+        .cards{margin-top:8px}
+        .card{border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:16px 0;box-shadow:0 1px 3px #0000000d}
+        .card h2{font-size:1.2rem;margin:0 0 4px}
+        .muted{color:var(--muted);font-weight:400;font-size:.9em}
+        h3{font-size:.95rem;margin:14px 0 4px}
         .two{display:flex;gap:24px;flex-wrap:wrap}.two>div{flex:1;min-width:220px}
-        .badge{padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
-        .badge.ok{background:#17803d22;color:#17803d}.badge.warn{background:#b7791f22;color:#b7791f}.badge.bad{background:#d3333322;color:#d33}
-        code{background:#8881;padding:1px 6px;border-radius:5px;font-size:12px}
-        .ok{color:#17803d}.bad{color:#d33}.warn{color:#b7791f}
-        ul.cases{list-style:none;padding:0;columns:2}ul.cases li{font-size:12px}
-        .warn-list li{color:#b7791f;font-size:13px}
+        .badge{padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+        .badge.ok{background:#17803d22;color:var(--ok)}.badge.warn{background:#b7791f22;color:var(--warn)}.badge.bad{background:#d3333322;color:var(--bad)}
+        code{background:#8881;padding:1px 6px;border-radius:5px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+        .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+        ul.cases{list-style:none;padding:0;columns:2;margin:4px 0}ul.cases li{font-size:12px;break-inside:avoid}
+        .warn-list li{color:var(--warn);font-size:13px}
+        /* блок ручного заполнения — действенный акцент */
+        .manual{border-left:3px solid var(--warn);background:#b7791f0f;border-radius:8px;padding:8px 14px;margin:12px 0}
+        .manual h3{margin-top:4px;color:var(--warn)}
+        .todo-list{list-style:none;padding:0;margin:6px 0}
+        .todo-list li{padding:6px 0;border-top:1px solid var(--line)}
+        .todo-list li:first-child{border-top:0}
+        .todo-list label{font-weight:600;cursor:pointer}
+        .hint{color:var(--muted);font-size:12px;margin:2px 0 0 22px}
       </style>
     HTML
   end
