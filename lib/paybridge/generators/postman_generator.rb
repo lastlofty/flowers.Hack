@@ -77,7 +77,7 @@ module Paybridge
             'method' => 'POST',
             'header' => [content_type_header],
             'url' => url_object(spec.webhook.path),
-            'body' => { 'mode' => 'raw', 'raw' => JSON.pretty_generate(example),
+            'body' => { 'mode' => 'raw', 'raw' => pretty_json(example),
                         'options' => { 'raw' => { 'language' => 'json' } } }
           }
         }
@@ -118,8 +118,18 @@ module Paybridge
 
       def raw_body
         example = spec.request_examples.values.first || {}
-        { 'mode' => 'raw', 'raw' => JSON.pretty_generate(example),
+        { 'mode' => 'raw', 'raw' => pretty_json(example),
           'options' => { 'raw' => { 'language' => 'json' } } }
+      end
+
+      # Детерминированный pretty-JSON: JSON.pretty_generate по-разному печатает
+      # ПУСТЫЕ контейнеры в C-расширении ("{}") и чистом Ruby ("{\n}") — из-за
+      # этого golden «дрейфовал» между CI и Windows. Нормализуем пустые до "{}".
+      def pretty_json(obj)
+        return '{}' if obj.is_a?(Hash) && obj.empty?
+        return '[]' if obj.is_a?(Array) && obj.empty?
+
+        JSON.pretty_generate(obj)
       end
 
       # {payment_id} -> {{provider_operation_id}}; query-авторизация добавляется в URL.

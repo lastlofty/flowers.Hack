@@ -40,4 +40,12 @@ class TestPostmanGenerator < Minitest::Test
     b = Paybridge.generate(spec_path: spec, provider: 'novapay').files['novapay.postman_collection.json']
     assert_equal a, b
   end
+
+  # Пустое тело печатается детерминированно как "{}" — не "{\n}", который
+  # JSON.pretty_generate выдаёт в чистом Ruby (расхождение golden CI vs Windows).
+  def test_empty_body_is_environment_independent
+    c = collection(File.expand_path('../examples/swiftpay_api.yaml', __dir__), 'swiftpay')
+    raw = c['item'].find { |i| i['name'].include?('Создание') }.dig('request', 'body', 'raw')
+    assert_equal '{}', raw
+  end
 end
