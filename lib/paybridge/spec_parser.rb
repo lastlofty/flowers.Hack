@@ -497,20 +497,31 @@ module Paybridge
       parts.reduce(@doc) { |acc, key| acc.is_a?(Hash) ? acc[key] : nil }
     end
 
-    # Глубоко разворачивает $ref внутри схемы (с защитой от циклов).
-    def resolve_deep(node, seen = [])
+    # Бюджет обхода и глубины: на огромных спеках (Stripe) плотный граф $ref даёт
+    # комбинаторный разворот. Ограничиваем — незавершённые ветки остаются как есть
+    # (это лишь добавит честных предупреждений о несопоставленных полях).
+    RESOLVE_NODE_BUDGET = 50_000
+    RESOLVE_MAX_DEPTH   = 40
+
+    # Глубоко разворачивает $ref внутри схемы (с защитой от циклов и бюджетом).
+    def resolve_deep(node, seen = [], depth = 0)
+      @resolve_budget = RESOLVE_NODE_BUDGET if seen.empty? && depth.zero?
+      return node if @resolve_budget.nil? || @resolve_budget <= 0 || depth > RESOLVE_MAX_DEPTH
+
+      @resolve_budget -= 1
+
       case node
       when Hash
         if node['$ref']
           ref = node['$ref']
           return {} if seen.include?(ref)
 
-          resolve_deep(resolve_ref(ref), seen + [ref])
+          resolve_deep(resolve_ref(ref), seen + [ref], depth + 1)
         else
-          node.each_with_object({}) { |(k, v), acc| acc[k] = resolve_deep(v, seen) }
+          node.each_with_object({}) { |(k, v), acc| acc[k] = resolve_deep(v, seen, depth + 1) }
         end
       when Array
-        node.map { |v| resolve_deep(v, seen) }
+        node.map { |v| resolve_deep(v, seen, depth + 1) }
       else
         node
       end

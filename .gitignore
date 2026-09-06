@@ -11,3 +11,5 @@ crash-*
 oom-*
 timeout-*
 leak-*
+# большая реальная спека — качается examples/real/fetch.sh
+/examples/real/stripe.yaml
