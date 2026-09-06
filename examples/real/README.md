@@ -10,8 +10,8 @@
 | Спека | Размер | Методов | Авторизация | `ruby -c` | **verify** | Вручную | Предупр. |
 |-------|-------:|--------:|-------------|:---------:|:----------:|:-------:|:--------:|
 | **ЮKassa** (YooMoney API) | 338 КБ | 34 | HTTP Basic | ✅ | **3 passed** / 1 skip | 0 | 25 |
-| **Adyen** Checkout v71 | 822 КБ | 28 | HTTP Basic¹ | ✅ | **3 passed** / 1 skip | 3 | 5 |
-| **Klarna** Payments v1 | 59 КБ | — | HTTP Bearer | ✅ | **3 passed** / 1 skip | 4 | — |
+| **Adyen** Checkout v71 | 822 КБ | 28 | HTTP Basic¹ | ✅ | **3 passed** / 1 skip | 3 | 76 |
+| **Klarna** Payments v1 | 59 КБ | 6 | не определена² | ✅ | **3 passed** / 1 skip | 4 | 22 |
 | **Stripe** (v2026-08-26) | 6.4 МБ | 594 | HTTP Bearer | ✅ | 1 passed / 1 skip | 0 | 17 |
 
 > `verify` skip у всех троих — только callback: подпись webhook не описана
@@ -52,8 +52,13 @@
 
 - Официальная спека (зеркало apis.guru), OpenAPI 3.0.
 - Верно определены create `POST /payments/v1/sessions` и status
-  `GET /payments/v1/sessions/{session_id}` — **verify 3 passed**. Авторизация
-  HTTP Bearer.
+  `GET /payments/v1/sessions/{session_id}` — **verify 3 passed**.
+- ² Авторизация: на операции создания в этой спеке нет явного `security`, схему
+  вывести не удалось → генерируем **пустые** заголовки + предупреждение
+  (не угадываем). verify проходит, т.к. и ожидание, и запрос без заголовка auth
+  согласованы. В бою Klarna использует HTTP Basic — задаётся overrides/security.
+- Adyen `/payments` — крупный объект: ~70 необязательных полей, которые мы не
+  выводим из модели операции, честно помечены предупреждениями (отсюда 76).
 - Вскрыл реальный баг устойчивости: спека содержит `example` с датой/временем
   без кавычек (`2038-01-19T03:14:07Z`) → `YAML.safe_load` ронял `Time`.
   **Починили**: Date/Time разрешены как безопасные value-классы (опасные
