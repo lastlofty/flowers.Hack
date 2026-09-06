@@ -40,9 +40,14 @@ module Paybridge
           'error_map' => spec.error_map,
           'recipient_methods' => recipient_methods,
           'manual_fields' => manual_fields,
-          'warnings' => spec.report.warnings,
+          'diagnostics' => diagnostics,
           'summary' => summary
         }
+      end
+
+      # Диагностика с уровнями (info/warn/error) — сгруппирована для чтения глазами.
+      def diagnostics
+        spec.report.diagnostics_by_level.transform_keys(&:to_s)
       end
 
       def provenance
@@ -101,10 +106,15 @@ module Paybridge
       end
 
       def summary
+        by_level = spec.report.diagnostics_by_level
         {
           'endpoints' => spec.endpoints.size,
           'manual_fields' => spec.report.todos.size,
-          'warnings' => spec.report.warnings.size
+          'diagnostics' => {
+            'info' => (by_level[:info] || []).size,
+            'warn' => (by_level[:warn] || []).size,
+            'error' => (by_level[:error] || []).size
+          }
         }
       end
 

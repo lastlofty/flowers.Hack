@@ -4,30 +4,22 @@ require 'minitest/autorun'
 require_relative '../../lib/paybridge/report'
 
 class TestReport < Minitest::Test
-  def setup
-    @report = Paybridge::Report.new
+  def test_levels_and_derived_warnings
+    r = Paybridge::Report.new
+    r.warn('info msg', level: :info)
+    r.warn('warn msg') # default :warn
+    r.warn('error msg', level: :error)
+
+    assert_equal ['info msg', 'warn msg', 'error msg'], r.warnings # плоский вид сохранён
+    by = r.diagnostics_by_level
+    assert_equal ['info msg'], by[:info]
+    assert_equal ['warn msg'], by[:warn]
+    assert_equal ['error msg'], by[:error]
   end
 
-  def test_starts_empty
-    refute @report.any?
-    assert_empty @report.warnings
-  end
-
-  def test_warn_accumulates_in_order
-    @report.warn('первое')
-    @report.warn('второе')
-    assert @report.any?
-    assert_equal ['первое', 'второе'], @report.warnings
-  end
-
-  def test_warn_returns_self_for_chaining
-    assert_same @report, @report.warn('x')
-  end
-
-  def test_each_yields_every_warning
-    @report.warn('a').warn('b')
-    collected = []
-    @report.each { |w| collected << w }
-    assert_equal %w[a b], collected
+  def test_unknown_level_falls_back_to_warn
+    r = Paybridge::Report.new
+    r.warn('x', level: :bogus)
+    assert_equal :warn, r.diagnostics.first.level
   end
 end

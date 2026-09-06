@@ -34,12 +34,16 @@ error_map:
   '500': internal_error
 recipient_methods:
 manual_fields: []
-warnings:
-- 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
-  Уточните overrides.amount_unit при необходимости.'
-- 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
-  при необходимости.'
+diagnostics:
+  warn:
+  - 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
+    Уточните overrides.amount_unit при необходимости.'
+  - 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
+    при необходимости.'
 summary:
   endpoints: 3
   manual_fields: 0
-  warnings: 2
+  diagnostics:
+    info: 0
+    warn: 2
+    error: 0

@@ -32,10 +32,14 @@ error_map:
   '500': internal_error
 recipient_methods:
 manual_fields: []
-warnings:
-- 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
-  Уточните overrides.amount_unit при необходимости.'
+diagnostics:
+  warn:
+  - 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
+    Уточните overrides.amount_unit при необходимости.'
 summary:
   endpoints: 2
   manual_fields: 0
-  warnings: 1
+  diagnostics:
+    info: 0
+    warn: 1
+    error: 0

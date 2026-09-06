@@ -40,16 +40,20 @@ recipient_methods:
 - sbp
 - card
 manual_fields: []
-warnings:
-- 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
-  Уточните overrides.amount_unit при необходимости.'
-- Условная обязательность поля 'bank_code' выведена из текста description. Уточните
-  overrides.required_if при необходимости.
-- Условная обязательность поля 'card_number' выведена из текста description. Уточните
-  overrides.required_if при необходимости.
-- 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
-  при необходимости.'
+diagnostics:
+  warn:
+  - 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
+    Уточните overrides.amount_unit при необходимости.'
+  - Условная обязательность поля 'bank_code' выведена из текста description. Уточните
+    overrides.required_if при необходимости.
+  - Условная обязательность поля 'card_number' выведена из текста description. Уточните
+    overrides.required_if при необходимости.
+  - 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
+    при необходимости.'
 summary:
   endpoints: 5
   manual_fields: 0
-  warnings: 4
+  diagnostics:
+    info: 0
+    warn: 4
+    error: 0

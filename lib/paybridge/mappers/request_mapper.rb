@@ -122,7 +122,7 @@ module Paybridge
           @pending_comment = "TODO(PayBridge): заполните '#{name}' вручную — #{hint}"
         else
           @report.warn("Необязательное поле '#{name}' не сопоставлено — отправляется nil " \
-                       '(убирается .compact). Заполните вручную при необходимости.')
+                       '(убирается .compact). Заполните вручную при необходимости.', level: :info)
           @pending_comment = "optional: '#{name}' не сопоставлено — заполните при необходимости"
         end
         'nil'

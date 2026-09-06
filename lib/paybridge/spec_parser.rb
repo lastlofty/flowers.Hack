@@ -73,7 +73,7 @@ module Paybridge
       cancel    = endpoints.find { |e| e.role == :cancel }
       webhook_e = endpoints.find { |e| e.role == :webhook }
 
-      @report.warn('Не найден метод создания операции (POST) — сервис будет неполным') if create.nil?
+      @report.warn('Не найден метод создания операции (POST) — сервис будет неполным', level: :error) if create.nil?
       @report.warn('Не найден метод статус-запроса (GET {id})') if status.nil?
 
       status_enum = extract_status_enum(create, status)

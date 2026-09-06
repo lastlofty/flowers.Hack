@@ -33,6 +33,16 @@ class TestMappingGenerator < Minitest::Test
     assert_equal 2, m.dig('summary', 'manual_fields')
   end
 
+  def test_diagnostics_grouped_by_level
+    m = mapping(File.expand_path('../examples/provider_api.yaml', __dir__), 'novapay')
+    diag = m['diagnostics']
+    assert diag.is_a?(Hash), 'diagnostics должны быть сгруппированы по уровню'
+    assert diag.key?('warn')
+    # summary.diagnostics согласован с содержимым
+    assert_equal (diag['warn'] || []).size, m.dig('summary', 'diagnostics', 'warn')
+    assert_equal 0, m.dig('summary', 'diagnostics', 'error')
+  end
+
   def test_mapping_is_deterministic
     spec = File.expand_path('../examples/provider_api.yaml', __dir__)
     a = Paybridge.generate(spec_path: spec, provider: 'novapay').files['novapay_mapping.yml']
