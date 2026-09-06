@@ -299,18 +299,36 @@ module Paybridge
                     balance|refund|capture|dispute|config|setting|test|schedule/xi
 
     def pick_create(candidates)
-      pick_ranked(candidates)
+      forced_endpoint(candidates, 'create_endpoint') || pick_ranked(candidates)
     end
 
-    # Статус-метод: сначала GET {id} на ресурсе создания (общий префикс пути —
-    # напр. /payments + /payments/{id}), иначе — ранжирование по платёжности.
+    # Статус-метод: overrides -> GET {id} на ресурсе создания (общий префикс пути —
+    # напр. /payments + /payments/{id}) -> ранжирование по платёжности.
     def pick_status(candidates, create)
+      forced = forced_endpoint(candidates, 'status_endpoint')
+      return forced if forced
+
       if create
         stem = create.path[%r{\A/[^/\{]+}o] # первый сегмент пути создания
         same = stem && candidates.find { |e| e.path.start_with?("#{stem}/") }
         return same if same
       end
       pick_ranked(candidates)
+    end
+
+    # Ручной выбор эндпоинта через overrides (для больших/неоднозначных спек,
+    # где эвристика берёт не тот метод). Значение: "/path" или "POST /path".
+    def forced_endpoint(candidates, key)
+      value = @overrides[key]
+      return nil if value.nil? || value.to_s.strip.empty?
+
+      path = value.to_s.split(/\s+/).last
+      match = candidates.find { |endpoint| endpoint.path == path }
+      unless match
+        @report.warn("overrides.#{key}: путь '#{path}' не найден среди подходящих " \
+                     'методов — использую автоматический выбор.')
+      end
+      match
     end
 
     def pick_ranked(candidates)
@@ -344,12 +362,21 @@ module Paybridge
 
     def build_auth(create)
       schemes = dig(@doc, 'components', 'securitySchemes') || {}
+
+      # overrides.security_scheme — форсируем именованную схему: для спек с
+      # несколькими схемами (Adyen: ApiKey/BasicAuth) или без явного security
+      # на операции (Klarna). Override приоритетнее спеки.
+      forced = @overrides['security_scheme']
+      if forced
+        return auth_from_scheme(schemes[forced]) if schemes[forced]
+
+        @report.warn("overrides.security_scheme: схема '#{forced}' не найдена в securitySchemes — использую спеку.")
+      end
+
       requirement = security_requirement(create)
 
       # Явный security: [] — операция без авторизации.
-      if requirement.is_a?(Array) && requirement.empty?
-        return nil
-      end
+      return nil if requirement.is_a?(Array) && requirement.empty?
 
       scheme_name = requirement && requirement.first.is_a?(Hash) ? requirement.first.keys.first : nil
       scheme = scheme_name && schemes[scheme_name]
@@ -357,6 +384,13 @@ module Paybridge
         @report.warn('Не удалось определить схему авторизации из security — заголовки будут пустыми')
         return nil
       end
+
+      auth_from_scheme(scheme)
+    end
+
+    # Строит IR::Auth из объекта securityScheme (общий путь для спеки и override).
+    def auth_from_scheme(scheme)
+      return nil unless scheme.is_a?(Hash)
 
       header, field, value = auth_shape(scheme)
       return nil if header.nil? && value.nil? # неподдержанная схема

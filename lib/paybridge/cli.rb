@@ -192,7 +192,7 @@ module Paybridge
         o.on('--provider NAME', 'Имя провайдера (напр. novapay)') { |v| options[:provider] = v }
         o.on('--output DIR', 'Каталог для результатов (по умолчанию ./output)') { |v| options[:output] = v }
         o.on('--config PATH', 'Файл правил маппинга') { |v| options[:config] = v }
-        o.on('--overrides PATH', 'Файл уточнений (amount_unit, signature_encoding, required_if)') { |v| options[:overrides] = v }
+        o.on('--overrides PATH', 'Файл уточнений (amount_unit, signature_encoding, required_if, create/status_endpoint, security_scheme)') { |v| options[:overrides] = v }
         o.on('--strict', 'Ненулевой код выхода, если есть поля для ручного заполнения') { options[:strict] = true }
         o.on('--lang LANG', 'Язык генерации (поддерживается только ruby)') { |v| options[:lang] = v }
         o.on('-h', '--help', 'Показать справку') { puts o; exit 0 }

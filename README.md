@@ -110,9 +110,16 @@ SSRF: локальные и служебные IP по умолчанию зап
 - `<provider>.postman_collection.json` — импортируемая коллекция Postman;
 - `base_service.rb` — платформенный каркас (чтобы сервис запускался).
 
-Уточнения того, что нельзя достать из структуры OpenAPI (единица суммы, кодировка подписи,
-условная обязательность полей) — через опциональный overrides-файл; чего в нём нет, ядро
-выведет эвристикой и честно предупредит:
+Уточнения того, что нельзя достать из структуры OpenAPI, — через опциональный
+overrides-файл; чего в нём нет, ядро выведет эвристикой и честно предупредит:
+
+| Ключ overrides | Для чего |
+| --- | --- |
+| `amount_unit` | `minor`/`major` — единица суммы |
+| `signature_encoding` | `hex`/`base64` — кодировка подписи webhook |
+| `required_if` | условная обязательность полей по способу |
+| `create_endpoint` / `status_endpoint` | ручной выбор метода (`"POST /v1/payment_intents"`) на крупных/неоднозначных спеках |
+| `security_scheme` | форсировать именованную схему авторизации (напр. `ApiKeyAuth` у Adyen вместо HTTP Basic) |
 
 ```bash
 ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --overrides examples/overrides.novapay.yml
