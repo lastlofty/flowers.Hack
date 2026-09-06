@@ -3,6 +3,7 @@
 require 'minitest/autorun'
 require 'tmpdir'
 require 'fileutils'
+require 'net/http'
 require_relative '../lib/paybridge'
 require_relative '../tools/mock_provider'
 
@@ -99,5 +100,17 @@ class TestE2E < Minitest::Test
     assert @service.process_callback(raw, sig).success?
     assert(@h[:mock].requests.any? { |r| r[:method] == 'POST' })
     assert(@h[:mock].requests.any? { |r| r[:method] == 'GET' })
+  end
+
+  def test_mock_uses_create_success_code_from_spec
+    endpoint = Struct.new(:path).new('/create')
+    spec = Struct.new(:create_endpoint, :status_endpoint, :create_success_codes, :webhook)
+                 .new(endpoint, nil, [202], nil)
+    mock = Paybridge::MockProvider.new(spec, created_status: 'pending', final_status: 'completed').start
+
+    response = Net::HTTP.post(URI("#{mock.base_url}/create"), '{}', 'Content-Type' => 'application/json')
+    assert_equal '202', response.code
+  ensure
+    mock&.stop
   end
 end

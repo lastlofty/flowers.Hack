@@ -57,6 +57,8 @@ module Provider
       failure(:too_many_requests, 'provider.rate_limit')
     rescue Provider::UnauthorizedError
       failure(:unauthorized, 'provider.invalid_credentials')
+    rescue Provider::NetworkError
+      failure(:service_unavailable, 'provider.network_error')
     end
 
     def fetch_status(operation)
@@ -66,10 +68,13 @@ module Provider
       )
       return map_error(response) if response.status >= 400
 
-      mapped = map_status(response.body['status'])
+      body = response.body.is_a?(Hash) ? response.body : {}
+      mapped = map_status(body['status'])
       return failure(:unprocessable_entity, 'unknown_status') if mapped.nil?
 
       success(status: mapped)
+    rescue Provider::NetworkError
+      failure(:service_unavailable, 'provider.network_error')
     end
 
     def process_callback(raw_body, signature = nil, _headers = {})

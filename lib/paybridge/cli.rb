@@ -40,12 +40,7 @@ module Paybridge
       abort 'Не указан --spec' unless spec
 
       require 'yaml'
-      content = if spec.match?(%r{\Ahttps?://}i)
-                  require 'open-uri'
-                  URI.parse(spec).open(&:read)
-                else
-                  File.read(spec)
-                end
+      content = Paybridge::SpecParser.read_source(spec)
       doc = YAML.safe_load(content, aliases: true)
 
       report = Paybridge::Linter.lint(doc)

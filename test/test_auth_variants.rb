@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require 'minitest/autorun'
+require 'English'
 require 'tempfile'
 require 'rbconfig'
+require 'tmpdir'
+require 'fileutils'
 require_relative '../lib/paybridge'
 
 # Закрытие дыр из разбора: apiKey в query-параметре и http basic.
@@ -77,5 +80,22 @@ class TestAuthVariants < Minitest::Test
     assert_includes code, "'Authorization' => \"Basic"
     assert_includes code, "require 'base64'"
     assert syntax_ok?(code), 'сервис с basic-auth не компилируется'
+
+    fixtures = JSON.parse(gen.files['fixtures.json'])
+    assert_equal 'basic', fixtures.dig('auth', 'scheme')
+    assert_generated_spec_passes(gen, 'basicpay')
+  end
+
+  def assert_generated_spec_passes(gen, provider)
+    output = nil
+    status = nil
+    Dir.mktmpdir("pb_#{provider}_") do |dir|
+      gen.files.each { |name, body| File.write(File.join(dir, name), body) }
+      FileUtils.cp(Paybridge::BASE_SERVICE, File.join(dir, 'base_service.rb'))
+      output = `"#{RbConfig.ruby}" "#{File.join(dir, "#{provider}_service_spec.rb")}" 2>&1`
+      status = $CHILD_STATUS
+    end
+    assert status.success?, "сгенерированный Basic Auth spec упал:\n#{output}"
+    assert_match(/0 failures, 0 errors/, output)
   end
 end

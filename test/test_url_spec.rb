@@ -71,4 +71,16 @@ class TestUrlSpec < Minitest::Test
     end
     assert_match(/credentials/i, err.message)
   end
+
+  def test_lint_command_uses_the_same_private_url_protection
+    yaml = File.read(File.expand_path('../examples/provider_api.yaml', __dir__))
+    with_server(yaml, allow_private: false) do |url|
+      status = nil
+      _stdout, stderr = capture_io do
+        status = Paybridge::CLI.new.start(['lint', '--spec', url])
+      end
+      assert_equal 1, status
+      assert_match(/локальный|служебный/i, stderr)
+    end
+  end
 end

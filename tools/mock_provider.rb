@@ -68,7 +68,7 @@ module Paybridge
       res['Content-Type'] = 'application/json'
 
       if req.request_method == 'POST' && req.path == @spec.create_endpoint.path
-        res.status = 201
+        res.status = Array(@spec.create_success_codes).first || 201
         res.body = JSON.generate('id' => 'srv_1', 'status' => @created)
       elsif req.request_method == 'GET' && status_request?(req)
         res.status = 200

@@ -6,6 +6,7 @@ require 'tmpdir'
 require 'fileutils'
 require 'rbconfig'
 require_relative '../lib/paybridge'
+require_relative '../lib/paybridge/templates/base_service'
 
 # P1: коды успеха из спеки, авторизация по security, webhook без подписи,
 # неполный ответ. Регрессии на конкретные сценарии из ТЗ.
@@ -136,6 +137,53 @@ class TestHttpAuth < Minitest::Test
     assert_includes code, 'def process_callback'
     refute_includes code, 'verify_signature!'
     assert syntax_ok?(code), code
+  end
+
+  def test_network_error_becomes_controlled_failure
+    klass = load_service(generate(success_code: '201'))
+    failing_client = Object.new
+    failing_client.define_singleton_method(:post) { |*_args, **_kwargs| raise Provider::NetworkError, 'timeout' }
+    service = klass.new(provider: provider)
+    service.instance_variable_set(:@client, failing_client)
+
+    result = service.create_request(operation)
+    assert result.failed?
+    assert_equal :service_unavailable, result.code
+    assert_equal 'provider.network_error', result.message
+  end
+
+  def test_non_object_status_response_is_controlled_failure
+    klass = load_service(generate(success_code: '201'))
+    service = klass.new(provider: provider)
+    service.instance_variable_set(:@client, mock_client(200, ['unexpected']))
+
+    result = service.fetch_status(operation)
+    assert result.failed?
+    assert_equal :unprocessable_entity, result.code
+    assert_equal 'unknown_status', result.message
+  end
+
+  def test_http_client_applies_configured_timeouts
+    response = Struct.new(:code, :body).new('200', '{}')
+    http = Object.new
+    class << http
+      attr_accessor :use_ssl, :open_timeout, :read_timeout, :write_timeout
+    end
+    http.define_singleton_method(:request) { |_request| response }
+
+    Net::HTTP.stub(:new, http) do
+      result = Provider::HttpClient.new(open_timeout: 1, read_timeout: 2, write_timeout: 3)
+                                   .get('https://provider.example/status')
+      assert_equal 200, result.status
+    end
+    assert_equal true, http.use_ssl
+    assert_equal 1.0, http.open_timeout
+    assert_equal 2.0, http.read_timeout
+    assert_equal 3.0, http.write_timeout
+  end
+
+  def test_http_client_rejects_invalid_timeout
+    assert_raises(ArgumentError) { Provider::HttpClient.new(read_timeout: 0) }
   end
 
   def syntax_ok?(code)

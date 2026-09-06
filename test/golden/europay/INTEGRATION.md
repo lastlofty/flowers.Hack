@@ -64,7 +64,8 @@ X-EuroPay-Signature = hex( HMAC-SHA256(request_body, credentials.callback_secret
 `verify_signature!` сравнивает подпись за постоянное время; несовпадение → `Provider::UnauthorizedError`.
 
 > Заголовок `X-EuroPay-Signature` приходит отдельно от тела. В боевом
-> контроллере прокиньте его в `process_callback` вместо чтения `payload['_signature']`.
+> контроллере передайте исходные байты тела и значение заголовка отдельными
+> аргументами в `process_callback(raw_body, signature, headers)`.
 
 ## Файлы интеграции
 

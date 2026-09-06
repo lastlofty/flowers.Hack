@@ -37,6 +37,12 @@ module Paybridge
     URL_READ_TIMEOUT = 3
     MAX_REDIRECTS = 3
 
+    # Единая безопасная загрузка источника для генератора, validate и lint.
+    # Отдельный экземпляр нужен только для хранения пути; разбор YAML не запускается.
+    def self.read_source(spec_path)
+      new(spec_path, 'source', {}).send(:read_spec_source)
+    end
+
     def parse
       Safe.provider!(@provider)
       validate_overrides!
@@ -120,7 +126,7 @@ module Paybridge
     YAML_PERMITTED = [Date, Time].freeze
 
     def load_yaml
-      content = read_spec_source
+      content = self.class.read_source(@spec_path)
       @spec_sha256 = Digest::SHA256.hexdigest(content)
       YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
     rescue Psych::Exception, EncodingError, ArgumentError => e
@@ -330,7 +336,8 @@ module Paybridge
     def request_schema(op)
       return nil unless op
 
-      dig(op, 'requestBody', 'content', 'application/json', 'schema')
+      body = resolve_ref_node(op['requestBody'])
+      dig(body, 'content', 'application/json', 'schema')
     end
 
     # --- auth ------------------------------------------------------------
@@ -443,7 +450,8 @@ module Paybridge
       code = responses.keys.find { |c| c.to_s.start_with?('2') }
       return nil unless code
 
-      dig(responses[code], 'content', 'application/json', 'schema')
+      response = resolve_ref_node(responses[code])
+      dig(response, 'content', 'application/json', 'schema')
     end
 
     def collect_http_codes(endpoints)
@@ -513,9 +521,9 @@ module Paybridge
     def request_examples(create)
       return {} unless create
 
-      examples = dig(@doc.dig('paths', create.path, create.http_method),
-                     'requestBody', 'content', 'application/json', 'examples') || {}
-      examples.transform_values { |e| e['value'] }
+      operation = @doc.dig('paths', create.path, create.http_method)
+      body = resolve_ref_node(operation && operation['requestBody'])
+      media_examples(dig(body, 'content', 'application/json'))
     end
 
     def response_examples(create, status)
@@ -523,8 +531,9 @@ module Paybridge
       [create, status].compact.each do |endpoint|
         responses = @doc.dig('paths', endpoint.path, endpoint.http_method, 'responses') || {}
         responses.each do |code, body|
-          ex = dig(resolve_ref_node(body), 'content', 'application/json', 'example')
-          out["#{endpoint.role}_#{code}"] = ex if ex
+          media = dig(resolve_ref_node(body), 'content', 'application/json')
+          ex = media_examples(media).values.first
+          out["#{endpoint.role}_#{code}"] = ex unless ex.nil?
         end
       end
       out
@@ -533,9 +542,25 @@ module Paybridge
     def webhook_examples(endpoint)
       return {} unless endpoint
 
-      examples = dig(@doc.dig('paths', endpoint.path, endpoint.http_method),
-                     'requestBody', 'content', 'application/json', 'examples') || {}
-      examples.transform_values { |e| e['value'] }
+      operation = @doc.dig('paths', endpoint.path, endpoint.http_method)
+      body = resolve_ref_node(operation && operation['requestBody'])
+      media_examples(dig(body, 'content', 'application/json'))
+    end
+
+    # OpenAPI разрешает как один `example`, так и именованный объект `examples`.
+    # Возвращаем одинаковую внутреннюю форму и разворачиваем локальные Example refs.
+    def media_examples(media)
+      return {} unless media.is_a?(Hash)
+
+      named = media['examples']
+      if named.is_a?(Hash)
+        return named.each_with_object({}) do |(name, entry), out|
+          resolved = resolve_ref_node(entry)
+          out[name] = resolved['value'] if resolved.is_a?(Hash) && resolved.key?('value')
+        end
+      end
+
+      media.key?('example') ? { 'default' => media['example'] } : {}
     end
 
     # --- служебное -------------------------------------------------------

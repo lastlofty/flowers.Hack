@@ -7,6 +7,7 @@ module Provider
   class Error < StandardError; end
   class RateLimitError < Error; end
   class UnauthorizedError < Error; end
+  class NetworkError < Error; end
 
   Result = Struct.new(:status, :code, :message, :data, keyword_init: true) do
     def success?
@@ -60,9 +61,22 @@ module Provider
   class HttpClient
     require 'net/http'
     require 'json'
+    require 'openssl'
+    require 'socket'
+    require 'timeout'
     require 'uri'
 
     Response = Struct.new(:status, :body, keyword_init: true)
+
+    def initialize(
+      open_timeout: ENV.fetch('PAYBRIDGE_HTTP_OPEN_TIMEOUT', '3'),
+      read_timeout: ENV.fetch('PAYBRIDGE_HTTP_READ_TIMEOUT', '10'),
+      write_timeout: ENV.fetch('PAYBRIDGE_HTTP_WRITE_TIMEOUT', '10')
+    )
+      @open_timeout = positive_timeout(open_timeout, 'open_timeout')
+      @read_timeout = positive_timeout(read_timeout, 'read_timeout')
+      @write_timeout = positive_timeout(write_timeout, 'write_timeout')
+    end
 
     def post(url, json:, headers: {})
       request(:post, url, json: json, headers: headers)
@@ -78,6 +92,9 @@ module Provider
       uri = URI.parse(url)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = (uri.scheme == 'https')
+      http.open_timeout = @open_timeout
+      http.read_timeout = @read_timeout
+      http.write_timeout = @write_timeout
 
       req = build_request(method, uri)
       headers.each { |k, v| req[k] = v }
@@ -88,6 +105,9 @@ module Provider
 
       raw = http.request(req)
       Response.new(status: raw.code.to_i, body: parse_body(raw.body))
+    rescue Timeout::Error, SocketError, SystemCallError, IOError, EOFError,
+           Net::ProtocolError, OpenSSL::SSL::SSLError => e
+      raise NetworkError, "provider request failed: #{e.class}"
     end
 
     def build_request(method, uri)
@@ -104,6 +124,15 @@ module Provider
       JSON.parse(body)
     rescue JSON::ParserError
       {}
+    end
+
+    def positive_timeout(value, name)
+      timeout = Float(value)
+      raise ArgumentError, "#{name} must be positive" unless timeout.positive? && timeout.finite?
+
+      timeout
+    rescue TypeError, ArgumentError
+      raise ArgumentError, "#{name} must be a positive number"
     end
   end
 end

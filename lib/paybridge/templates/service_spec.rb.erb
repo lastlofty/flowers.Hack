@@ -116,8 +116,13 @@ class <%= spec.provider_class %>Test < Minitest::Test
     expected = case auth['type']
                when 'apiKey' then provider.credentials[auth['credentials_field']]
                when 'http'
-                 auth['credentials_field'] == 'username' ?
-                   "Basic #{Base64.strict_encode64('u:p')}" : "Bearer #{provider.credentials[auth['credentials_field']]}"
+                 basic = auth['scheme'] == 'basic' ||
+                         (!auth.key?('scheme') && auth['credentials_field'] == 'username')
+                 if basic
+                   "Basic #{Base64.strict_encode64('u:p')}"
+                 else
+                   "Bearer #{provider.credentials[auth['credentials_field']]}"
+                 end
                end
     assert_equal expected, headers[auth['header']] if expected
   end

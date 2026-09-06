@@ -14,8 +14,12 @@ provider  = ARGV[1] || 'novapay'
 
 config = Paybridge.load_config
 spec = Paybridge::SpecParser.new(spec_path, provider, config).parse
+created_status = spec.status_map.key('in_progress') || spec.status_map.keys.first
+final_status = spec.status_map.key('approved') || created_status
+abort 'Спецификация не содержит распознаваемых статусов для E2E' unless created_status
 
-mock = Paybridge::MockProvider.new(spec, created_status: 'pending', final_status: 'completed').start
+mock = Paybridge::MockProvider.new(spec, created_status: created_status, final_status: final_status).start
+at_exit { mock.stop }
 ENV["#{provider.upcase}_BASE_URL"] = mock.base_url
 puts "Мок-провайдер поднят: #{mock.base_url}"
 
@@ -28,8 +32,16 @@ require File.join(dir, "#{provider}_service.rb")
 klass = Provider.const_get(Paybridge::Safe.class_name(provider))
 puts "Сгенерирован и загружен сервис: Provider::#{klass.name.split('::').last}\n\n"
 
-fake_provider = Struct.new(:credentials).new({ 'api_key' => 'live_key', 'callback_secret' => 'test_secret' })
-operation = Struct.new(:amount, :id, :payout_requisite, :provider_operation_id, :idempotency_key, keyword_init: true).new(
+credentials = {
+  'api_key' => 'live_key', 'token' => 'live_token', 'username' => 'live_user',
+  'password' => 'live_password', 'callback_secret' => 'test_secret'
+}
+fake_provider = Struct.new(:credentials).new(credentials)
+operation_class = Struct.new(
+  :amount, :id, :payout_requisite, :provider_operation_id, :idempotency_key,
+  keyword_init: true
+)
+operation = operation_class.new(
   amount: 15_000, id: 'op1',
   payout_requisite: { 'sbp' => { 'phone' => '79001234567', 'bank_code' => '044525225', 'bank_name' => 'Bank' } },
   provider_operation_id: 'srv_1', idempotency_key: 'idem1'
@@ -39,28 +51,45 @@ service = klass.new(provider: fake_provider)
 puts '1) create_request -> реальный POST к провайдеру'
 r1 = service.create_request(operation)
 puts "   результат: #{r1.status} / #{r1.data.inspect}"
-puts "   провайдер получил: #{mock.requests.last[:method]} #{mock.requests.last[:path]} (auth=#{mock.requests.last[:auth]})\n\n"
+request = mock.requests.last
+puts "   провайдер получил: #{request[:method]} #{request[:path]} (auth=#{request[:auth]})\n\n"
+raise "create_request завершился ошибкой: #{r1.message}" unless r1.success?
 
 if spec.status_endpoint
   puts '2) fetch_status -> реальный GET к провайдеру'
   r2 = service.fetch_status(operation)
   puts "   результат: #{r2.status} / #{r2.data.inspect}"
   puts "   провайдер получил: #{mock.requests.last[:method]} #{mock.requests.last[:path]}\n\n"
+  raise "fetch_status завершился ошибкой: #{r2.message}" unless r2.success?
 end
 
 if spec.webhook
   puts '3) webhook -> провайдер шлёт подписанное уведомление'
-  raw, sig = mock.webhook_message({ 'event' => spec.webhook.events.first, 'payout_id' => 'srv_1', 'status' => 'completed' })
+  event, action = spec.webhook.event_actions.find { |_name, value| %i[approve reject].include?(value) }
+  raise 'Webhook не содержит события с понятным действием approve/reject' unless event
+
+  callback_status = spec.status_map.key(action == :approve ? 'approved' : 'rejected') || final_status
+  raw, sig = mock.webhook_message({ 'event' => event, spec.webhook.id_field => 'srv_1', 'status' => callback_status })
   r3 = service.process_callback(raw, sig)
   puts "   результат: #{r3.status} / #{r3.data.inspect}"
-  puts '   подделка тела с той же подписью:'
-  begin
-    service.process_callback(raw.sub('completed', 'failed'), sig)
-    puts '   ПРИНЯТО (плохо!)'
-  rescue Provider::UnauthorizedError
-    puts '   ОТКЛОНЕНО подписью ✅'
+  callback_ok = action == :approve ? r3.success? : r3.failed? && r3.code == :rejected
+  raise "process_callback вернул неожиданный результат: #{r3.message}" unless callback_ok
+
+  if spec.webhook.signature_header
+    puts '   подделка тела с той же подписью:'
+    begin
+      tampered = raw.sub(/"status":"[^"]+"/, '"status":"tampered"')
+      raise 'не удалось изменить тело для negative-сценария' if tampered == raw
+
+      service.process_callback(tampered, sig)
+      raise 'изменённое тело было принято с прежней подписью'
+    rescue Provider::UnauthorizedError
+      puts '   ОТКЛОНЕНО подписью ✅'
+    end
+  else
+    puts '   проверка подмены пропущена: спецификация не описывает подпись webhook'
   end
 end
 
 mock.stop
-puts "\nГотово: сгенерированная интеграция отработала полный цикл по реальному HTTP."
+puts "\nГотово: отработали все поддерживаемые спецификацией этапы по реальному HTTP."

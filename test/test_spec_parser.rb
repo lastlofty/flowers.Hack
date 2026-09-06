@@ -82,4 +82,74 @@ class TestSpecParser < Minitest::Test
   ensure
     file.close!
   end
+
+  def test_component_request_body_response_and_both_example_forms
+    file = Tempfile.new(['component-refs', '.yaml'])
+    file.write(<<~YAML)
+      openapi: 3.0.3
+      info: { title: Ref API, version: "1" }
+      servers: [{ url: https://api.example.test }]
+      paths:
+        /pay:
+          post:
+            security: []
+            requestBody: { $ref: '#/components/requestBodies/CreatePayment' }
+            responses:
+              '200': { $ref: '#/components/responses/PaymentCreated' }
+        /hooks/payment:
+          post:
+            security: []
+            requestBody: { $ref: '#/components/requestBodies/PaymentHook' }
+            responses: { '204': { description: accepted } }
+      components:
+        examples:
+          CreateSample:
+            value: { amount: 500, currency: RUB }
+        requestBodies:
+          CreatePayment:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    amount: { type: integer }
+                    currency: { type: string, enum: [RUB] }
+                examples:
+                  primary: { $ref: '#/components/examples/CreateSample' }
+          PaymentHook:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [event, payout_id, status]
+                  properties:
+                    event: { type: string, enum: [payment.completed] }
+                    payout_id: { type: string }
+                    status: { type: string }
+                example: { event: payment.completed, payout_id: p1, status: completed }
+        responses:
+          PaymentCreated:
+            description: created
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    status: { type: string, enum: [pending, completed] }
+                examples:
+                  ok:
+                    value: { id: p1, status: pending }
+    YAML
+    file.rewind
+
+    spec = Paybridge::SpecParser.new(file.path, 'refpay', Paybridge.load_config).parse
+    assert_equal 'object', spec.create_endpoint.request_schema['type']
+    assert_equal({ 'amount' => 500, 'currency' => 'RUB' }, spec.request_examples['primary'])
+    assert_equal({ 'id' => 'p1', 'status' => 'pending' }, spec.response_examples['create_200'])
+    assert_equal 'payment.completed', spec.webhook_examples.dig('default', 'event')
+    assert_equal 'in_progress', spec.status_map['pending']
+  ensure
+    file.close!
+  end
 end
