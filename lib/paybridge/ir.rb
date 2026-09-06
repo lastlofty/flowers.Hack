@@ -8,6 +8,7 @@ module Paybridge
       :role,            # :create | :status | :cancel | :webhook | :other
       :path_params, :query_params, :header_params,
       :request_schema, :response_codes,
+      :spec_line,       # строка в исходной спеке (для source-map/диагностики)
       keyword_init: true
     ) do
       def to_s
@@ -23,6 +24,7 @@ module Paybridge
       :credentials_field,  # ключ в providers.credentials
       :header_value_ruby,  # Ruby-выражение значения заголовка
       :http_scheme,        # для type=http: 'basic' | 'bearer' (иначе nil)
+      :spec_line,          # строка схемы в исходной спеке (source-map)
       keyword_init: true
     )
 

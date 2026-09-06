@@ -5,16 +5,25 @@ provenance:
   spec_source: provider_api.yaml
   spec_sha256: 415f50ee36fb331dfab49ceed0e8ed3b0ebe16053d7e00dbabd32282f4396551
 recognized:
-  create: POST /payouts
-  status: GET /payouts/{payout_id}
-  cancel: POST /payouts/{payout_id}/cancel
-  webhook: POST /webhooks/payout
+  create:
+    ref: POST /payouts
+    line: 26
+  status:
+    ref: GET /payouts/{payout_id}
+    line: 108
+  cancel:
+    ref: POST /payouts/{payout_id}/cancel
+    line: 142
+  webhook:
+    ref: POST /webhooks/payout
+    line: 174
 auth:
   type: apiKey
   scheme:
   location: header
   header: X-API-Key
   credentials_field: api_key
+  line: 255
 idempotency_header: Idempotency-Key
 amount:
   field: amount

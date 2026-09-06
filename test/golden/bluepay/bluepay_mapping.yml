@@ -5,16 +5,23 @@ provenance:
   spec_source: bluepay_api.yaml
   spec_sha256: 3d9c558299d8d642b100a36f9503324b67b3be2c029dd1e95201bd2af9b0fc80
 recognized:
-  create: POST /transfers
-  status: GET /transfers/{transfer_id}
+  create:
+    ref: POST /transfers
+    line: 18
+  status:
+    ref: GET /transfers/{transfer_id}
+    line: 74
   cancel:
-  webhook: POST /hooks/transfer
+  webhook:
+    ref: POST /hooks/transfer
+    line: 100
 auth:
   type: apiKey
   scheme:
   location: header
   header: X-Api-Token
   credentials_field: api_key
+  line: 139
 idempotency_header:
 amount:
   field: amount

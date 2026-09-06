@@ -59,30 +59,43 @@ module Paybridge
         }
       end
 
-      # Выбранные роли: как endpoint, так и явная пометка, что метод не найден.
+      # Выбранные роли + строка в исходной спеке (source-map/трассируемость).
       def recognized
         {
-          'create' => endpoint_str(spec.create_endpoint),
-          'status' => endpoint_str(spec.status_endpoint),
-          'cancel' => endpoint_str(spec.cancel_endpoint),
-          'webhook' => spec.webhook && "POST #{spec.webhook.path}"
+          'create' => endpoint_ref(spec.create_endpoint),
+          'status' => endpoint_ref(spec.status_endpoint),
+          'cancel' => endpoint_ref(spec.cancel_endpoint),
+          'webhook' => webhook_ref
         }
       end
 
-      def endpoint_str(endpoint)
-        endpoint && "#{endpoint.http_method.upcase} #{endpoint.path}"
+      def endpoint_ref(endpoint)
+        return nil unless endpoint
+
+        ref = { 'ref' => "#{endpoint.http_method.upcase} #{endpoint.path}" }
+        ref['line'] = endpoint.spec_line if endpoint.spec_line
+        ref
+      end
+
+      def webhook_ref
+        return nil unless spec.webhook
+
+        endpoint_ref(spec.endpoints.find { |e| e.role == :webhook }) ||
+          { 'ref' => "POST #{spec.webhook.path}" }
       end
 
       def auth_block
         return nil unless spec.auth
 
-        {
+        block = {
           'type' => spec.auth.scheme_type,
           'scheme' => spec.auth.http_scheme,
           'location' => spec.auth.location,
           'header' => spec.auth.header_name,
           'credentials_field' => spec.auth.credentials_field
         }
+        block['line'] = spec.auth.spec_line if spec.auth.spec_line
+        block
       end
 
       def amount_block

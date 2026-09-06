@@ -11,6 +11,7 @@ require 'uri'
 require_relative 'ir'
 require_relative 'report'
 require_relative 'safe'
+require_relative 'line_index'
 require_relative 'mappers/status_mapper'
 require_relative 'mappers/error_mapper'
 require_relative 'mappers/request_mapper'
@@ -128,6 +129,7 @@ module Paybridge
     def load_yaml
       content = self.class.read_source(@spec_path)
       @spec_sha256 = Digest::SHA256.hexdigest(content)
+      @line_index = LineIndex.new(content)
       YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
     rescue Psych::Exception, EncodingError, ArgumentError => e
       # Psych: SyntaxError/DisallowedClass (!ruby/object, символ)/BadAlias;
@@ -275,7 +277,8 @@ module Paybridge
             query_params: params_in(op, 'query'),
             header_params: params_in(op, 'header'),
             request_schema: request_schema(op),
-            response_codes: (op['responses'] || {}).keys
+            response_codes: (op['responses'] || {}).keys,
+            spec_line: @line_index&.line_for('paths', path, http_method)
           )
         end
       end
@@ -368,7 +371,7 @@ module Paybridge
       # на операции (Klarna). Override приоритетнее спеки.
       forced = @overrides['security_scheme']
       if forced
-        return auth_from_scheme(schemes[forced]) if schemes[forced]
+        return auth_from_scheme(schemes[forced], forced) if schemes[forced]
 
         @report.warn("overrides.security_scheme: схема '#{forced}' не найдена в securitySchemes — использую спеку.")
       end
@@ -385,11 +388,11 @@ module Paybridge
         return nil
       end
 
-      auth_from_scheme(scheme)
+      auth_from_scheme(scheme, scheme_name)
     end
 
     # Строит IR::Auth из объекта securityScheme (общий путь для спеки и override).
-    def auth_from_scheme(scheme)
+    def auth_from_scheme(scheme, scheme_name = nil)
       return nil unless scheme.is_a?(Hash)
 
       header, field, value = auth_shape(scheme)
@@ -401,7 +404,8 @@ module Paybridge
         header_name: header,
         credentials_field: field,
         header_value_ruby: value,
-        http_scheme: http_scheme(scheme)
+        http_scheme: http_scheme(scheme),
+        spec_line: scheme_name && @line_index&.line_for('components', 'securitySchemes', scheme_name)
       )
     end
 

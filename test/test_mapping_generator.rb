@@ -16,8 +16,9 @@ class TestMappingGenerator < Minitest::Test
     m = mapping(File.expand_path('../examples/provider_api.yaml', __dir__), 'novapay')
     assert_match(/\APayBridge /, m.dig('provenance', 'generator'))
     assert_equal 64, m.dig('provenance', 'spec_sha256').length # sha256 hex
-    assert_equal 'POST /payouts', m.dig('recognized', 'create')
-    assert_equal 'GET /payouts/{payout_id}', m.dig('recognized', 'status')
+    assert_equal 'POST /payouts', m.dig('recognized', 'create', 'ref')
+    assert_operator m.dig('recognized', 'create', 'line'), :>, 0 # цитата строки спеки
+    assert_equal 'GET /payouts/{payout_id}', m.dig('recognized', 'status', 'ref')
     assert_equal 'apiKey', m.dig('auth', 'type')
     assert_equal 'minor', m.dig('amount', 'unit')
     assert_equal %w[sbp card], m['recipient_methods']
