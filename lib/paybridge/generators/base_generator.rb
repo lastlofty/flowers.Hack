@@ -45,6 +45,37 @@ module Paybridge
         webhook_base64 || auth_base64
       end
 
+      # --- выбор способа выплаты (sbp/card) ---
+
+      def recipient_spec?
+        !spec.recipient_spec.nil?
+      end
+
+      def payout_methods
+        recipient_spec? ? spec.recipient_spec['methods'] : {}
+      end
+
+      def payout_methods_literal
+        "%w[#{payout_methods.keys.join(' ')}]"
+      end
+
+      # Литерал REQUIRED_REQUISITE = { 'sbp' => %w[phone bank_code], ... }
+      def required_requisite_literal
+        entries = payout_methods.map do |method, info|
+          "      #{Safe.rb(method)} => %w[#{info['required'].join(' ')}]"
+        end
+        "{\n#{entries.join(",\n")}\n    }.freeze"
+      end
+
+      # Тело ветки case для одного способа: { type:, поля через requisite.dig }.compact
+      def recipient_branch(method, info)
+        pairs = ["type: #{Safe.rb(method)}"]
+        info['fields'].each do |field|
+          pairs << "#{Safe.hash_key(field)} requisite.dig(#{Safe.rb(method)}, #{Safe.rb(field)})"
+        end
+        "{ #{pairs.join(', ')} }.compact"
+      end
+
       # apiKey передаётся в query-параметре, а не в заголовке.
       def auth_in_query?
         spec.auth && spec.auth.location == 'query'

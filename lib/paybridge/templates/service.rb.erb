@@ -26,12 +26,25 @@ module Provider
 <%= render_error_map %>
 
 <%= render_symbol_map %>
+<% if recipient_spec? -%>
+
+    PAYOUT_METHODS = <%= payout_methods_literal %>.freeze
+    REQUIRED_REQUISITE = <%= required_requisite_literal %>
+<% end -%>
 
     def check_conditions(operation, request_method)
       base_result = super
       return base_result if base_result.failed?
 <% if min_amount -%>
       return failure(:unprocessable_entity, 'amount_too_low') if <%= amount_too_low_condition %>
+<% end -%>
+<% if recipient_spec? -%>
+      method = payout_method(operation, request_method)
+      REQUIRED_REQUISITE.fetch(method, []).each do |field|
+        if (operation.payout_requisite || {}).dig(method, field).nil?
+          return failure(:unprocessable_entity, 'missing_requisite', data: { field: field, method: method })
+        end
+      end
 <% end -%>
 <% (spec.required_requisite || []).each do |group, field| -%>
       if operation.payout_requisite.nil? || operation.payout_requisite.dig(<%= Safe.rb(group) %>, <%= Safe.rb(field) %>).nil?
@@ -42,7 +55,7 @@ module Provider
     end
 
     def create_request(operation, request_method = 'create')
-      payload  = build_request_payload(operation)
+      payload  = build_request_payload(operation, request_method)
       response = client.post(
         "#{BASE_URL}<%= spec.create_endpoint.path %><%= auth_query %>",
         json: payload,
@@ -104,10 +117,29 @@ module Provider
 
     private
 
-    def build_request_payload(operation)
+    def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       <%= spec.request_payload_ruby %>
     end
+<% if recipient_spec? -%>
+
+    # Способ выплаты: явный request_method, иначе по наличию реквизитов, иначе первый.
+    def payout_method(operation, request_method)
+      return request_method if PAYOUT_METHODS.include?(request_method)
+
+      present = PAYOUT_METHODS.find { |type| (operation.payout_requisite || {}).key?(type) }
+      present || PAYOUT_METHODS.first
+    end
+
+    def build_recipient(operation, requisite, request_method)
+      case payout_method(operation, request_method)
+<% payout_methods.each do |method, info| -%>
+      when <%= Safe.rb(method) %>
+        <%= recipient_branch(method, info) %>
+<% end -%>
+      end
+    end
+<% end -%>
 
     def parse_create_response(_operation, response)
       case response.status

@@ -46,12 +46,15 @@ class TestRequestMapper < Minitest::Test
     assert_includes result.ruby, 'operation.id.to_s'
   end
 
-  def test_nested_requisite_filtered_by_type
+  def test_multi_method_recipient_spec
     result = build
-    assert_includes result.ruby, "type: 'sbp'"
-    assert_includes result.ruby, "requisite.dig('sbp', 'phone')"
-    assert_includes result.ruby, "requisite.dig('sbp', 'bank_code')"
-    refute_includes result.ruby, 'card_number'
+    assert_includes result.ruby, 'build_recipient(operation, requisite, request_method)'
+    methods = result.recipient_spec['methods']
+    assert_equal %w[sbp card], methods.keys
+    assert_includes methods['sbp']['fields'], 'bank_code'
+    refute_includes methods['sbp']['fields'], 'card_number'
+    assert_includes methods['card']['fields'], 'card_number'
+    refute_includes methods['card']['fields'], 'bank_code'
   end
 
   def test_optional_fields_get_compact

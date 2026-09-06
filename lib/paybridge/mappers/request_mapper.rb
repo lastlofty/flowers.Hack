@@ -15,7 +15,7 @@ module Paybridge
     #   * остальные скаляры                 -> operation.<field> (с предупреждением)
     class RequestMapper
       Result = Struct.new(:ruby, :amount, :currency, :external_id_field, :required_requisite,
-                          keyword_init: true)
+                          :recipient_spec, keyword_init: true)
 
       AMOUNT_HINT   = /\b(amount|sum|total)\b/i
       MINOR_HINT    = /копей|kopeck|копейк|цент|cents?|minor/i
@@ -30,6 +30,7 @@ module Paybridge
         @external_id_field = nil
         @guessed_required_if = []
         @required_requisite = []
+        @recipient_spec = nil
       end
 
       def build(schema)
@@ -41,7 +42,8 @@ module Paybridge
           amount: @amount,
           currency: @currency,
           external_id_field: @external_id_field,
-          required_requisite: @required_requisite
+          required_requisite: @required_requisite,
+          recipient_spec: @recipient_spec
         )
       end
 
@@ -67,8 +69,14 @@ module Paybridge
 
       def value_expr(name, prop, depth, _group)
         if prop['type'] == 'object' || prop['properties']
-          nested_group = object_group(prop)
-          emit_nested(prop, depth + 1, nested_group)
+          type_enum = nested_type_enum(prop)
+          if type_enum.size > 1
+            # Несколько способов (sbp/card): выбор в рантайме через request_method.
+            record_recipient_spec(name, prop, type_enum)
+            'build_recipient(operation, requisite, request_method)'
+          else
+            emit_nested(prop, depth + 1, object_group(prop))
+          end
         elsif amount_field?(name, prop)
           record_amount(name, prop)
           @amount[:minor_units] ? '(operation.amount * 100).to_i' : 'operation.amount'
@@ -198,6 +206,47 @@ module Paybridge
             'Уточните overrides.required_if при необходимости.'
           )
         end
+      end
+
+      # enum значений поля type у вложенного объекта (способы выплаты).
+      def nested_type_enum(prop)
+        type_prop = (prop['properties'] || {})['type']
+        enum = type_prop.is_a?(Hash) ? type_prop['enum'] : nil
+        enum.is_a?(Array) ? enum : []
+      end
+
+      # Описатель recipient с несколькими способами: поля и обязательные per-способ.
+      def record_recipient_spec(name, prop, type_enum)
+        props = prop['properties'] || {}
+        required = prop['required'] || []
+        methods = {}
+
+        type_enum.each do |type|
+          fields = []
+          req = []
+          props.each do |fname, fprop|
+            next if fname == 'type'
+
+            restriction = field_restriction(fname, fprop)
+            next if restriction && restriction != type # поле другого способа
+
+            fields << fname
+            req << fname if required.include?(fname) || restriction == type
+          end
+          methods[type.to_s] = { 'fields' => fields, 'required' => req }
+        end
+
+        @recipient_spec = { 'field' => name, 'methods' => methods }
+      end
+
+      # Ограничение поля по способу: overrides -> текст description (догадка).
+      def field_restriction(name, prop)
+        ov = override_required_if(name)
+        return ov if ov
+
+        guess = prop['description'].to_s[/type=(\w+)/, 1]
+        @guessed_required_if << name if guess
+        guess
       end
 
       # Группа вложенного объекта = дефолтное значение поля type (первый enum / example).

@@ -95,6 +95,7 @@ module Paybridge
         currency: req.currency,
         external_id_field: req.external_id_field,
         required_requisite: req.required_requisite,
+        recipient_spec: req.recipient_spec,
         request_payload_ruby: req.ruby,
         request_examples: request_examples(create),
         response_examples: response_examples(create, status),

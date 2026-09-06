@@ -54,8 +54,11 @@ class TestSpecParser < Minitest::Test
 
   def test_request_payload_literal
     assert_includes @spec.request_payload_ruby, '(operation.amount * 100).to_i'
-    assert_includes @spec.request_payload_ruby, "requisite.dig('sbp', 'phone')"
-    refute_includes @spec.request_payload_ruby, 'card_number'
+    # recipient с несколькими способами -> выбор в рантайме через build_recipient
+    assert_includes @spec.request_payload_ruby, 'build_recipient(operation, requisite, request_method)'
+    assert_equal %w[sbp card], @spec.recipient_spec['methods'].keys
+    assert_includes @spec.recipient_spec['methods']['sbp']['required'], 'bank_code'
+    assert_includes @spec.recipient_spec['methods']['card']['required'], 'card_number'
   end
 
   def test_webhook

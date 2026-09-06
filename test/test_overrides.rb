@@ -49,7 +49,9 @@ class TestOverrides < Minitest::Test
   def test_required_if_override_matches_description_result
     # overrides дают тот же результат, что и разбор description, но без догадки
     spec = parse('required_if' => { 'bank_code' => 'sbp', 'card_number' => 'card' })
-    assert_includes spec.request_payload_ruby, "requisite.dig('sbp', 'bank_code')"
-    refute_includes spec.request_payload_ruby, 'card_number'
+    methods = spec.recipient_spec['methods']
+    assert_includes methods['sbp']['fields'], 'bank_code'
+    refute_includes methods['sbp']['fields'], 'card_number'
+    assert_includes methods['card']['fields'], 'card_number'
   end
 end
