@@ -17,6 +17,9 @@ class TestVerdictGenerator < Minitest::Test
     assert_equal 'ready', v['verdict']
     assert_empty v['blockers']
     assert_equal 0, v.dig('diagnostics', 'error')
+    # фикстуры проверены схемой и валидны
+    assert_equal true, v.dig('fixtures_schema', 'checked')
+    assert_equal true, v.dig('fixtures_schema', 'valid')
   end
 
   def test_manual_fields_block_admission

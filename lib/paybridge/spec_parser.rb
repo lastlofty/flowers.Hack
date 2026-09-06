@@ -13,6 +13,7 @@ require_relative 'report'
 require_relative 'safe'
 require_relative 'line_index'
 require_relative 'swagger_converter'
+require_relative 'schema_validator'
 require_relative 'mappers/status_mapper'
 require_relative 'mappers/error_mapper'
 require_relative 'mappers/request_mapper'
@@ -87,6 +88,7 @@ module Paybridge
 
       req_schema = create && resolve_deep(create.request_schema)
       req = Mappers::RequestMapper.new(@report, @overrides, field_line: field_line_resolver(create)).build(req_schema)
+      validate_example_schemas(create, req_schema, webhook_e)
 
       IR::Spec.new(
         provider_name: @provider,
@@ -324,6 +326,26 @@ module Paybridge
       { name: 'fetch_balance', method: 'get', re: /balance/i },
       { name: 'refund_request', method: 'post', re: /refund/i }
     ].freeze
+
+    # Схемная валидация примеров фикстур (request + webhook) против схем спеки —
+    # доказываем, что сгенерированные примеры соответствуют структуре, а не «на глаз».
+    def validate_example_schemas(create, req_schema, webhook_e)
+      violations = []
+      request_examples(create).each_value { |ex| violations.concat(SchemaValidator.errors(ex, req_schema, 'request')) } if req_schema
+
+      if webhook_e
+        wop = @doc.dig('paths', webhook_e.path, webhook_e.http_method)
+        wschema = resolve_deep(request_schema(wop))
+        webhook_examples(webhook_e).each_value { |ex| violations.concat(SchemaValidator.errors(ex, wschema, 'callback')) } if wschema
+      end
+
+      if violations.empty?
+        @report.warn('Примеры фикстур соответствуют схемам спецификации.',
+                     level: :info, confidence: 1.0, evidence: 'встроенная схемная валидация')
+      else
+        violations.first(10).each { |v| @report.warn("Пример фикстуры не соответствует схеме: #{v}") }
+      end
+    end
 
     def detect_extra_operations(endpoints, used)
       EXTRA_OPS.filter_map do |op|

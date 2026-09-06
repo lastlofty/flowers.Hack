@@ -47,6 +47,10 @@ diagnostics:
     при необходимости.'
   confidence: 0.4
   evidence: нет сигналов единицы в спеке -> по умолчанию major
+- level: info
+  message: Примеры фикстур соответствуют схемам спецификации.
+  confidence: 1.0
+  evidence: встроенная схемная валидация
 - level: warn
   message: 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните
     overrides.signature_encoding при необходимости.'
@@ -56,6 +60,6 @@ summary:
   endpoints: 3
   manual_fields: 0
   diagnostics:
-    info: 0
+    info: 1
     warn: 2
     error: 0

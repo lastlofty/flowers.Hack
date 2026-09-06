@@ -41,12 +41,19 @@ module Paybridge
           'verdict' => verdict(blockers, by),
           'blockers' => blockers,
           'manual_fields' => spec.report.todos.size,
+          'fixtures_schema' => fixtures_schema,
           'diagnostics' => {
             'error' => (by[:error] || []).size,
             'warn' => (by[:warn] || []).size,
             'info' => (by[:info] || []).size
           }
         }
+      end
+
+      # Результат схемной валидации примеров фикстур.
+      def fixtures_schema
+        violations = spec.report.diagnostics.count { |d| d.message.include?('не соответствует схеме') }
+        { 'checked' => true, 'valid' => violations.zero?, 'violations' => violations }
       end
 
       def collect_blockers

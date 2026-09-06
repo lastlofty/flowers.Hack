@@ -6,9 +6,14 @@
   "verdict": "ready",
   "blockers": [],
   "manual_fields": 0,
+  "fixtures_schema": {
+    "checked": true,
+    "valid": true,
+    "violations": 0
+  },
   "diagnostics": {
     "error": 0,
     "warn": 2,
-    "info": 0
+    "info": 1
   }
 }

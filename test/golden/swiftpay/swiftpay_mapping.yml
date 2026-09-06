@@ -44,10 +44,14 @@ diagnostics:
     при необходимости.'
   confidence: 0.8
   evidence: 'description: «цент»'
+- level: info
+  message: Примеры фикстур соответствуют схемам спецификации.
+  confidence: 1.0
+  evidence: встроенная схемная валидация
 summary:
   endpoints: 2
   manual_fields: 0
   diagnostics:
-    info: 0
+    info: 1
     warn: 1
     error: 0
