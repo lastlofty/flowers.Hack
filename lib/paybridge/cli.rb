@@ -2,6 +2,7 @@
 
 require 'optparse'
 require 'fileutils'
+require 'rbconfig'
 
 module Paybridge
   # Командная строка генератора: разбирает аргументы, запускает парсер и
@@ -17,6 +18,7 @@ module Paybridge
       return lint_cmd(argv[1..]) if argv.first == 'lint'
       return diff_cmd(argv[1..]) if argv.first == 'diff'
       return docs_cmd(argv[1..]) if argv.first == 'docs'
+      return selftest_cmd(argv[1..]) if argv.first == 'selftest'
 
       options = parse_options(argv)
       run(options)
@@ -212,6 +214,31 @@ module Paybridge
     rescue SpecParser::ParseError => e
       warn "\e[31mОшибка разбора спецификации:\e[0m #{e.message}"
       1
+    end
+
+    # integrate selftest --dir output/
+    # Запускает СГЕНЕРИРОВАННЫЙ <provider>_service_spec.rb (реальный артефакт) в
+    # отдельном процессе. Доказывает, что вывод не просто компилируется, а его
+    # собственные контрактные тесты зелёные.
+    def selftest_cmd(argv)
+      dir = './output'
+      OptionParser.new do |o|
+        o.banner = 'Usage: integrate selftest --dir <output-dir>'
+        o.on('--dir DIR', 'Каталог со сгенерированной интеграцией') { |v| dir = v }
+      end.parse!(argv)
+
+      spec_file = Dir[File.join(dir, '*_service_spec.rb')].sort.first
+      unless spec_file
+        warn "\e[31mselftest:\e[0m в #{dir} нет сгенерированного *_service_spec.rb"
+        return 1
+      end
+
+      output = `"#{RbConfig.ruby}" "#{spec_file}" 2>&1`
+      puts output
+      summary = output[/\d+ runs?, .*?skips?/m]
+      passed = output.match?(/0 failures, 0 errors/)
+      puts(passed ? "\e[32mselftest: зелёный\e[0m — #{summary}" : "\e[31mselftest: провал\e[0m — #{summary}")
+      passed ? 0 : 1
     end
 
     def parse_options(argv)

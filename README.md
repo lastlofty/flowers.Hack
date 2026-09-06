@@ -177,6 +177,18 @@ docker run --rm -v "$PWD:/work" paybridge \
   --spec /work/examples/provider_api.yaml --provider novapay --output /work/output
 ```
 
+## Самопроверка вывода (selftest)
+
+`selftest` запускает **сгенерированный** `<provider>_service_spec.rb` (реальный
+артефакт из вывода) в отдельном процессе — доказывает, что вывод не просто
+компилируется, а его собственные контрактные тесты зелёные.
+
+```bash
+ruby exe/integrate --spec examples/provider_api.yaml --provider novapay --output output
+ruby exe/integrate selftest --dir output
+# selftest: зелёный — 15 runs, 85 assertions, 0 failures, 0 errors, 0 skips
+```
+
 ## HTML-инструкция (docs)
 
 `docs` собирает самодостаточную HTML-инструкцию по интеграции (что распознано,
