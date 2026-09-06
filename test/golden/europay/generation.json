@@ -1,0 +1,14 @@
+{
+  "provider": "europay",
+  "generator": "PayBridge 1.0.0",
+  "spec_sha256": "2fabca5a34b11593d2945f237d7e13a48ae0d8978dc3014ad90fb794ea5fdbd6",
+  "admitted": true,
+  "verdict": "ready",
+  "blockers": [],
+  "manual_fields": 0,
+  "diagnostics": {
+    "error": 0,
+    "warn": 2,
+    "info": 0
+  }
+}

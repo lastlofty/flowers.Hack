@@ -1,0 +1,14 @@
+{
+  "provider": "bluepay",
+  "generator": "PayBridge 1.0.0",
+  "spec_sha256": "3d9c558299d8d642b100a36f9503324b67b3be2c029dd1e95201bd2af9b0fc80",
+  "admitted": true,
+  "verdict": "ready",
+  "blockers": [],
+  "manual_fields": 0,
+  "diagnostics": {
+    "error": 0,
+    "warn": 2,
+    "info": 0
+  }
+}

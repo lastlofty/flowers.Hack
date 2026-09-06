@@ -1,0 +1,14 @@
+{
+  "provider": "swiftpay",
+  "generator": "PayBridge 1.0.0",
+  "spec_sha256": "d4d9a3ec1715ef3bb3653fc9dec496cafb4d48e60daf67e3723a4bec2655d745",
+  "admitted": true,
+  "verdict": "ready",
+  "blockers": [],
+  "manual_fields": 0,
+  "diagnostics": {
+    "error": 0,
+    "warn": 1,
+    "info": 0
+  }
+}

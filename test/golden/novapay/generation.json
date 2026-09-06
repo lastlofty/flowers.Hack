@@ -1,0 +1,14 @@
+{
+  "provider": "novapay",
+  "generator": "PayBridge 1.0.0",
+  "spec_sha256": "415f50ee36fb331dfab49ceed0e8ed3b0ebe16053d7e00dbabd32282f4396551",
+  "admitted": true,
+  "verdict": "ready",
+  "blockers": [],
+  "manual_fields": 0,
+  "diagnostics": {
+    "error": 0,
+    "warn": 4,
+    "info": 0
+  }
+}
