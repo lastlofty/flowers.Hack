@@ -222,8 +222,15 @@ module Paybridge
 
     def declared_create_success_codes
       @declared_create_success_codes ||= begin
-        match = @service_source.match(/case response\.status\s+when\s+([\d,\s]+)/m)
-        match ? match[1].scan(/\d{3}/).map(&:to_i) : []
+        declared = @fixtures.dig('create_request', 'success_codes')
+        if declared.is_a?(Array) && !declared.empty?
+          # Контракт v3: коды успеха объявлены явно в fixtures.json.
+          declared.map(&:to_i)
+        else
+          # Совместимость с v2: реверсим из текста сервиса (case response.status).
+          match = @service_source.match(/case response\.status\s+when\s+([\d,\s]+)/m)
+          match ? match[1].scan(/\d{3}/).map(&:to_i) : []
+        end
       end
     end
 
@@ -275,7 +282,7 @@ module Paybridge
         value = case auth['type']
                 when 'apiKey' then fake_provider.credentials[auth['credentials_field']]
                 when 'http'
-                  if auth['credentials_field'] == 'username'
+                  if http_basic?(auth)
                     "Basic #{Base64.strict_encode64('u:p')}"
                   else
                     "Bearer #{fake_provider.credentials[auth['credentials_field']]}"
@@ -285,6 +292,15 @@ module Paybridge
       end
       headers[fixtures['idempotency_header']] = 'idem_1' if fixtures['idempotency_header']
       headers
+    end
+
+    # Basic vs Bearer: контракт v3 несёт auth.scheme явно; для старых фикстур
+    # (без scheme) — совместимость по credentials_field (парсер ставит 'password'
+    # для basic, 'token' для bearer).
+    def http_basic?(auth)
+      return auth['scheme'] == 'basic' if auth.key?('scheme')
+
+      auth['credentials_field'] == 'password' || auth['credentials_field'] == 'username'
     end
 
     def operation_for(fixtures)

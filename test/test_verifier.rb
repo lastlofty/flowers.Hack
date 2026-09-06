@@ -151,6 +151,58 @@ class TestVerifier < Minitest::Test
     assert_equal 'passed', report.cases.find { |item| item.name == 'callback.invalid_signature' }.status
   end
 
+  # Регрессия YooKassa: HTTP Basic (credentials_field=password). Verifier должен
+  # выбирать Basic по auth.scheme, а не угадывать Bearer по credentials_field.
+  BASIC_SPEC = <<~YAML
+    openapi: 3.0.3
+    info: { title: T, version: "1.0.0" }
+    servers: [ { url: https://x.example/v1 } ]
+    paths:
+      /pay:
+        post:
+          operationId: create
+          security: [ { Basic: [] } ]
+          requestBody:
+            required: true
+            content: { application/json: { schema: { type: object, required: [amount], properties: { amount: {type: integer, minimum: 100} } } } }
+          responses:
+            '200': { description: ok, content: { application/json: { schema: { type: object, properties: { id: {type: string}, status: {type: string, enum: [pending, completed]} } } } } }
+      /pay/{id}:
+        get:
+          operationId: get
+          security: [ { Basic: [] } ]
+          parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+          responses:
+            '200': { description: ok, content: { application/json: { schema: { type: object, properties: { id: {type: string}, status: {type: string, enum: [pending, completed]} } } } } }
+    components:
+      securitySchemes:
+        Basic: { type: http, scheme: basic }
+  YAML
+
+  def test_http_basic_auth_verifies_without_guessing_bearer
+    file = Tempfile.new(['basic', '.yaml'])
+    file.write(BASIC_SPEC)
+    file.close
+    provider = "basicpay_#{SecureRandom.hex(3)}"
+    dir = Dir.mktmpdir("pb_#{provider}_")
+    gen = Paybridge.generate(spec_path: file.path, provider: provider)
+    gen.files.each { |name, body| File.write(File.join(dir, name), body) }
+    FileUtils.cp(Paybridge::BASE_SERVICE, File.join(dir, 'base_service.rb'))
+
+    # v3-контракт объявляет схему явно.
+    fixtures = JSON.parse(gen.files['fixtures.json'])
+    assert_equal 3, fixtures['contract_version']
+    assert_equal 'basic', fixtures.dig('auth', 'scheme')
+    assert_equal [200], fixtures.dig('create_request', 'success_codes')
+
+    report = Paybridge::Verifier.new(dir).run
+    assert_equal 0, report.failed,
+                 "провал: #{report.cases.select { |c| c.status == 'failed' }.map { |c| "#{c.name} #{c.detail}" }.join('; ')}"
+    assert_equal 'passed', report.cases.find { |c| c.name == 'create_request.response_200' }.status
+  ensure
+    file&.unlink
+  end
+
   def test_exception_in_one_scenario_is_failed_and_does_not_abort_report
     dir = generated_dir('provider_api.yaml', 'raises_once')
     service = Dir[File.join(dir, '*_service.rb')].reject { |path| path.end_with?('base_service.rb') }.first

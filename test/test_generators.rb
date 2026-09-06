@@ -38,8 +38,9 @@ class TestGenerators < Minitest::Test
   def test_fixtures_generation
     json = Paybridge::Generators::FixturesGenerator.new(@spec).render
     data = JSON.parse(json)
-    assert_equal 2, data['contract_version']
+    assert_equal 3, data['contract_version']
     assert_equal 'novapay', data['provider']
+    assert_equal [201], data['create_request']['success_codes']
     assert data['create_request']['request']
     assert_equal 'openapi', data['create_request']['request_source']
     assert data['create_request']['operation']

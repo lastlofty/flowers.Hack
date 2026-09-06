@@ -1,5 +1,5 @@
 {
-  "contract_version": 2,
+  "contract_version": 3,
   "provider": "europay",
   "base_url": "https://sandbox.europay.example/v3",
   "auth": {
@@ -10,6 +10,9 @@
   },
   "create_request": {
     "endpoint": "POST /payments",
+    "success_codes": [
+      201
+    ],
     "request": {
       "amount": 250,
       "currency": "EUR",

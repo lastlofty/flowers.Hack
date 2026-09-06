@@ -310,7 +310,8 @@ module Paybridge
         location: scheme['in'],
         header_name: header,
         credentials_field: field,
-        header_value_ruby: value
+        header_value_ruby: value,
+        http_scheme: http_scheme(scheme)
       )
     end
 
@@ -327,6 +328,13 @@ module Paybridge
       return [] unless create
 
       create.response_codes.map(&:to_i).select { |c| c.between?(200, 299) }.sort
+    end
+
+    # Явная подсхема http (basic|bearer) — чтобы verifier не угадывал по credentials_field.
+    def http_scheme(scheme)
+      return nil unless scheme['type'] == 'http'
+
+      scheme['scheme'].to_s.downcase == 'basic' ? 'basic' : 'bearer'
     end
 
     # По типу схемы возвращает [имя заголовка, поле credentials, Ruby-выражение значения].

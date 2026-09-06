@@ -1,15 +1,19 @@
 {
-  "contract_version": 2,
+  "contract_version": 3,
   "provider": "swiftpay",
   "base_url": "https://sandbox.swiftpay.example/v1",
   "auth": {
     "type": "http",
     "location": null,
     "header": "Authorization",
-    "credentials_field": "token"
+    "credentials_field": "token",
+    "scheme": "bearer"
   },
   "create_request": {
     "endpoint": "POST /payments",
+    "success_codes": [
+      201
+    ],
     "response_201": {
       "id": "sp_001",
       "status": "pending"

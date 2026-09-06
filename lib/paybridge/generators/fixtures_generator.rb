@@ -24,7 +24,7 @@ module Paybridge
       private
 
       def build
-        data = { 'contract_version' => 2, 'provider' => spec.provider_name }
+        data = { 'contract_version' => 3, 'provider' => spec.provider_name }
         data['base_url'] = spec.base_url if spec.base_url
         data['auth'] = auth_block if spec.auth
         data['create_request'] = create_block if spec.create_endpoint
@@ -34,16 +34,23 @@ module Paybridge
       end
 
       def auth_block
-        {
+        block = {
           'type' => spec.auth.scheme_type,
           'location' => spec.auth.location,
           'header' => spec.auth.header_name,
           'credentials_field' => spec.auth.credentials_field
         }
+        # Явная подсхема http (basic|bearer): verifier выбирает форму заголовка
+        # по ней, а не угадывает по credentials_field.
+        block['scheme'] = spec.auth.http_scheme if spec.auth.http_scheme
+        block
       end
 
       def create_block
         block = { 'endpoint' => "POST #{spec.create_endpoint.path}" }
+        # Явные коды успеха создания: verifier проверяет их как success, а не
+        # реверсит из текста сервиса и не хардкодит 201.
+        block['success_codes'] = spec.create_success_codes if spec.create_success_codes&.any?
         block['idempotency_header'] = spec.idempotency_header if spec.idempotency_header
         request = spec.request_examples.values.first
         if request

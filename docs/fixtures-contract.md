@@ -1,22 +1,36 @@
 # Контракт fixtures.json и callback
 
-Актуальная версия контракта — `2`. Формат генерирует ядро PayBridge,
+Актуальная версия контракта — `3`. Формат генерирует ядро PayBridge,
 а Verifier и сгенерированные Minitest-тесты читают его как независимый набор
 сценариев.
 
+> **v3 (что нового).** Два поля сделаны явными, чтобы Verifier не угадывал и не
+> реверсил их из текста сервиса:
+> - `auth.scheme` — для `type: http` равно `"basic"` или `"bearer"`. Verifier
+>   выбирает форму заголовка `Authorization` по нему, а НЕ по `credentials_field`.
+> - `create_request.success_codes` — массив HTTP-кодов успешного создания
+>   (напр. `[200]` у ЮKassa, `[201]` у большинства). Verifier проверяет ответы
+>   с этими кодами как success; **хардкодить `201` нельзя**.
+>
+> Совместимость: фикстуры v2 (без этих полей) читаются по-старому — схема
+> определяется по `credentials_field`, коды успеха реверсятся из `case
+> response.status` в исходнике сервиса. Новый код должен опираться на явные поля.
+
 ```jsonc
 {
-  "contract_version": 2,
-  "provider": "novapay",
-  "base_url": "https://api.sandbox.novapay.example/v1",
+  "contract_version": 3,
+  "provider": "yookassa",
+  "base_url": "https://api.yookassa.ru/v3",
   "auth": {
-    "type": "apiKey",
-    "location": "header",
-    "header": "X-API-Key",
-    "credentials_field": "api_key"
+    "type": "http",
+    "location": null,
+    "header": "Authorization",
+    "credentials_field": "password",
+    "scheme": "basic"
   },
   "create_request": {
-    "endpoint": "POST /payouts",
+    "endpoint": "POST /payments",
+    "success_codes": [200],
     "idempotency_header": "Idempotency-Key",
     "request": { "amount": 1500000 },
     "request_source": "openapi",
@@ -84,6 +98,20 @@
   конфликта остаётся failed.
 - В `expected` используются `status` (`success`/`failed`),
   `provider_operation_id`, `operation_status`, `provider_code` и `internal_code`.
+- `create_request.success_codes` — источник истины по кодам успеха создания.
+  Ответы с кодом из этого списка Verifier проверяет как success; коды `2xx`
+  вне списка считаются синтетическим шумом и пропускаются.
+
+## Авторизация (`auth`)
+
+- `type` — `apiKey` | `http`.
+- `location` — `header` | `query` (для `apiKey`).
+- `header` — имя заголовка (`X-API-Key`, `Authorization`, …).
+- `credentials_field` — ключ в `provider.credentials` (`api_key` | `token` |
+  `password`).
+- `scheme` (только `type: http`) — `basic` | `bearer`. Определяет форму
+  `Authorization`: `Basic base64(username:password)` либо `Bearer <token>`.
+  Verifier обязан выбирать форму по `scheme`, не по `credentials_field`.
 
 ## Callback и подпись
 

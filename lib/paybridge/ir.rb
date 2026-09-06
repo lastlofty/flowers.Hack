@@ -22,6 +22,7 @@ module Paybridge
       :header_name,        # напр. X-API-Key | Authorization
       :credentials_field,  # ключ в providers.credentials
       :header_value_ruby,  # Ruby-выражение значения заголовка
+      :http_scheme,        # для type=http: 'basic' | 'bearer' (иначе nil)
       keyword_init: true
     )
 

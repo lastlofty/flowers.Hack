@@ -1,5 +1,5 @@
 {
-  "contract_version": 2,
+  "contract_version": 3,
   "provider": "bluepay",
   "base_url": "https://sandbox.bluepay.example/api",
   "auth": {
@@ -10,6 +10,9 @@
   },
   "create_request": {
     "endpoint": "POST /transfers",
+    "success_codes": [
+      201
+    ],
     "request": {
       "amount": 500,
       "currency": "USD",
