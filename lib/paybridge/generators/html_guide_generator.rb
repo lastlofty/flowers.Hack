@@ -104,17 +104,26 @@ module Paybridge
       end
 
       def diagnostics_section
-        by = spec.report.diagnostics_by_level
-        return '' if by.empty?
+        return '' if spec.report.diagnostics.empty?
 
         blocks = %i[error warn info].filter_map do |level|
-          msgs = by[level]
-          next unless msgs&.any?
+          diags = spec.report.diagnostics.select { |d| d.level == level }
+          next if diags.empty?
 
-          items = msgs.map { |m| "<li>#{e(m)}</li>" }.join
-          "<h3 class=\"lvl-#{level}\">#{level} (#{msgs.size})</h3><ul>#{items}</ul>"
+          items = diags.map { |d| "<li>#{e(d.message)}#{evidence_html(d)}</li>" }.join
+          "<h3 class=\"lvl-#{level}\">#{level} (#{diags.size})</h3><ul>#{items}</ul>"
         end.join
         "<h2>Диагностика</h2>#{blocks}"
+      end
+
+      # Уверенность + обоснование вывода (объяснимость).
+      def evidence_html(diag)
+        return '' unless diag.confidence || diag.evidence
+
+        parts = []
+        parts << "уверенность #{diag.confidence}" if diag.confidence
+        parts << "основание: #{e(diag.evidence)}" if diag.evidence
+        "<br><span class=\"hint\">#{parts.join(' · ')}</span>"
       end
 
       def provenance_section

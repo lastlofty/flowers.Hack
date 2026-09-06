@@ -567,7 +567,8 @@ module Paybridge
 
       @report.warn(
         "Кодировка подписи webhook не задана в спеке: принята 'hex'. " \
-        'Уточните overrides.signature_encoding при необходимости.'
+        'Уточните overrides.signature_encoding при необходимости.',
+        confidence: 0.4, evidence: 'спека не описывает кодировку подписи -> дефолт hex'
       )
       'hex'
     end

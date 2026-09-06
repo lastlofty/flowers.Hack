@@ -111,6 +111,7 @@ module Provider
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       {
+        # Evidence (единица суммы, confidence 0.8): description: «цент»
         amount: amount_in_minor_units(operation.amount),
         currency: 'USD',
         reference: operation.id.to_s,

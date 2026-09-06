@@ -144,6 +144,7 @@ module Provider
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       {
+        # Evidence (единица суммы, confidence 0.8): description: «копей»
         amount: amount_in_minor_units(operation.amount),
         currency: 'RUB',
         external_id: operation.id.to_s,

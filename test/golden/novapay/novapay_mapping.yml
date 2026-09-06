@@ -50,15 +50,26 @@ recipient_methods:
 - card
 manual_fields: []
 diagnostics:
-  warn:
-  - 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
-    Уточните overrides.amount_unit при необходимости.'
-  - Условная обязательность поля 'bank_code' выведена из текста description. Уточните
-    overrides.required_if при необходимости.
-  - Условная обязательность поля 'card_number' выведена из текста description. Уточните
-    overrides.required_if при необходимости.
-  - 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните overrides.signature_encoding
+- level: warn
+  message: 'Единица суммы не выражается в OpenAPI: принята ''minor''. Уточните overrides.amount_unit
     при необходимости.'
+  confidence: 0.8
+  evidence: 'description: «копей»'
+- level: warn
+  message: Условная обязательность поля 'bank_code' выведена из текста description.
+    Уточните overrides.required_if при необходимости.
+  confidence: 0.6
+  evidence: description поля 'bank_code' содержит 'type=<способ>'
+- level: warn
+  message: Условная обязательность поля 'card_number' выведена из текста description.
+    Уточните overrides.required_if при необходимости.
+  confidence: 0.6
+  evidence: description поля 'card_number' содержит 'type=<способ>'
+- level: warn
+  message: 'Кодировка подписи webhook не задана в спеке: принята ''hex''. Уточните
+    overrides.signature_encoding при необходимости.'
+  confidence: 0.4
+  evidence: спека не описывает кодировку подписи -> дефолт hex
 summary:
   endpoints: 5
   manual_fields: 0

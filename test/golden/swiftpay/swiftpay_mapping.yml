@@ -38,9 +38,11 @@ error_map:
 recipient_methods:
 manual_fields: []
 diagnostics:
-  warn:
-  - 'Единица суммы не выражается в OpenAPI: принята ''minor'' (по описанию/минимуму).
-    Уточните overrides.amount_unit при необходимости.'
+- level: warn
+  message: 'Единица суммы не выражается в OpenAPI: принята ''minor''. Уточните overrides.amount_unit
+    при необходимости.'
+  confidence: 0.8
+  evidence: 'description: «цент»'
 summary:
   endpoints: 2
   manual_fields: 0

@@ -14,8 +14,15 @@ module Paybridge
 
     LEVELS = %i[info warn error].freeze
 
-    Diagnostic = Struct.new(:level, :message, keyword_init: true) do
-      def to_h = { level: level.to_s, message: message }
+    # confidence (0..1) и evidence (цитата из спеки) — объяснимость выводов:
+    # почему принято именно это допущение и насколько мы уверены.
+    Diagnostic = Struct.new(:level, :message, :confidence, :evidence, keyword_init: true) do
+      def to_h
+        base = { level: level.to_s, message: message }
+        base[:confidence] = confidence if confidence
+        base[:evidence] = evidence if evidence
+        base
+      end
     end
 
     # Поле для ручного заполнения: что заполнить, где в коде, подсказка и (если
@@ -34,9 +41,9 @@ module Paybridge
 
     # level: :info (безобидно, к сведению) | :warn (принято допущение, проверьте) |
     #        :error (сервис неполный/некорректен без вмешательства).
-    def warn(message, level: :warn)
+    def warn(message, level: :warn, confidence: nil, evidence: nil)
       level = :warn unless LEVELS.include?(level)
-      @diagnostics << Diagnostic.new(level: level, message: message)
+      @diagnostics << Diagnostic.new(level: level, message: message, confidence: confidence, evidence: evidence)
       self
     end
 

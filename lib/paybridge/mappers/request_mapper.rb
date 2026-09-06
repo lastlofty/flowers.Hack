@@ -95,6 +95,9 @@ module Paybridge
           end
         elsif amount_field?(name, prop)
           record_amount(name, prop)
+          if @amount_evidence
+            @pending_comment = "Evidence (единица суммы, confidence #{@amount_confidence}): #{@amount_evidence}"
+          end
           @amount[:minor_units] ? 'amount_in_minor_units(operation.amount)' : 'operation.amount'
         elsif currency_field?(name, prop)
           record_currency(prop)
@@ -193,6 +196,18 @@ module Paybridge
           (prop['type'] == 'integer' && prop['minimum'].to_i >= 1000)
       end
 
+      # Уверенность и обоснование вывода единицы суммы: явный сигнал в description
+      # -> высокая; косвенный (минимум) -> средняя; нет сигналов -> низкая.
+      def amount_unit_evidence(prop)
+        if (match = prop['description'].to_s[MINOR_HINT])
+          [0.8, "description: «#{match}»"]
+        elsif prop['type'] == 'integer' && prop['minimum'].to_i >= 1000
+          [0.6, "minimum: #{prop['minimum']} (крупный порог -> минорные единицы)"]
+        else
+          [0.4, 'нет сигналов единицы в спеке -> по умолчанию major']
+        end
+      end
+
       def record_amount(name, prop)
         if prop.key?('minimum')
           minimum = prop['minimum']
@@ -206,10 +221,11 @@ module Paybridge
             unit.to_s == 'minor'
           else
             guessed = minor_units?(prop)
+            @amount_confidence, @amount_evidence = amount_unit_evidence(prop)
             @report.warn(
               "Единица суммы не выражается в OpenAPI: принята " \
-              "'#{guessed ? 'minor' : 'major'}' (по описанию/минимуму). " \
-              'Уточните overrides.amount_unit при необходимости.'
+              "'#{guessed ? 'minor' : 'major'}'. Уточните overrides.amount_unit при необходимости.",
+              confidence: @amount_confidence, evidence: @amount_evidence
             )
             guessed
           end
@@ -259,7 +275,8 @@ module Paybridge
         @guessed_required_if.uniq.each do |name|
           @report.warn(
             "Условная обязательность поля '#{name}' выведена из текста description. " \
-            'Уточните overrides.required_if при необходимости.'
+            'Уточните overrides.required_if при необходимости.',
+            confidence: 0.6, evidence: "description поля '#{name}' содержит 'type=<способ>'"
           )
         end
       end

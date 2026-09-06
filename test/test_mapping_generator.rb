@@ -34,14 +34,18 @@ class TestMappingGenerator < Minitest::Test
     assert_equal 2, m.dig('summary', 'manual_fields')
   end
 
-  def test_diagnostics_grouped_by_level
+  def test_diagnostics_carry_level_confidence_evidence
     m = mapping(File.expand_path('../examples/provider_api.yaml', __dir__), 'novapay')
     diag = m['diagnostics']
-    assert diag.is_a?(Hash), 'diagnostics должны быть сгруппированы по уровню'
-    assert diag.key?('warn')
-    # summary.diagnostics согласован с содержимым
-    assert_equal (diag['warn'] || []).size, m.dig('summary', 'diagnostics', 'warn')
+    assert diag.is_a?(Array), 'diagnostics — список записей'
+    assert(diag.all? { |d| d['level'] && d['message'] })
+    warns = diag.count { |d| d['level'] == 'warn' }
+    assert_equal warns, m.dig('summary', 'diagnostics', 'warn') # согласовано со сводкой
     assert_equal 0, m.dig('summary', 'diagnostics', 'error')
+    # хотя бы у одного вывода есть уверенность и обоснование (единица суммы)
+    amount = diag.find { |d| d['message'].include?('Единица суммы') }
+    assert_operator amount['confidence'], :>, 0
+    assert amount['evidence'], 'у вывода единицы суммы есть evidence'
   end
 
   def test_mapping_is_deterministic

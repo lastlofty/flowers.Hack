@@ -45,9 +45,10 @@ module Paybridge
         }
       end
 
-      # Диагностика с уровнями (info/warn/error) — сгруппирована для чтения глазами.
+      # Диагностика: уровень + сообщение + (для выводов) уверенность и evidence —
+      # объяснимость «почему принято именно это допущение и насколько уверенно».
       def diagnostics
-        spec.report.diagnostics_by_level.transform_keys(&:to_s)
+        spec.report.diagnostics.map { |d| d.to_h.transform_keys(&:to_s) }
       end
 
       def provenance

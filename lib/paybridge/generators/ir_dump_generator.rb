@@ -49,7 +49,7 @@ module Paybridge
           'required_requisite' => spec.required_requisite,
           'request_payload_ruby' => spec.request_payload_ruby,
           'manual_fields' => spec.report.todos.map { |t| t.to_h.transform_keys(&:to_s) },
-          'diagnostics' => spec.report.diagnostics_by_level.transform_keys(&:to_s)
+          'diagnostics' => spec.report.diagnostics.map { |d| d.to_h.transform_keys(&:to_s) }
         }
       end
 

@@ -99,6 +99,7 @@ module Provider
     def build_request_payload(operation, request_method = nil)
       requisite = operation.payout_requisite || {}
       {
+        # Evidence (единица суммы, confidence 0.4): нет сигналов единицы в спеке -> по умолчанию major
         amount: operation.amount,
         currency: 'EUR',
         order_id: operation.id.to_s,
