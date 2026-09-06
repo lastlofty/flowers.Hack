@@ -85,7 +85,7 @@ module Paybridge
       error_map, http_symbol = error_mapper.build(http_codes)
 
       req_schema = create && resolve_deep(create.request_schema)
-      req = Mappers::RequestMapper.new(@report, @overrides).build(req_schema)
+      req = Mappers::RequestMapper.new(@report, @overrides, field_line: field_line_resolver(create)).build(req_schema)
 
       IR::Spec.new(
         provider_name: @provider,
@@ -120,6 +120,32 @@ module Paybridge
     end
 
     private
+
+    # Резолвер строки поля тела запроса (source-map): callable(field) -> строка
+    # спеки или nil. Обрабатывает inline-схему и одиночный $ref на компонент.
+    def field_line_resolver(create)
+      return nil unless create && @line_index
+
+      op = @doc.dig('paths', create.path, create.http_method) || {}
+      content = op.dig('requestBody', 'content')
+      return nil unless content.is_a?(Hash)
+
+      content_type = content.keys.first
+      schema = content.dig(content_type, 'schema')
+      base = ['paths', create.path, create.http_method, 'requestBody', 'content', content_type, 'schema']
+      if schema.is_a?(Hash) && schema['$ref'].is_a?(String)
+        target = ref_segments(schema['$ref'])
+        base = target if target
+      end
+      ->(field) { @line_index.line_for(*base, 'properties', field) }
+    end
+
+    # '#/components/schemas/X' -> ['components','schemas','X']; иначе nil.
+    def ref_segments(ref)
+      return nil unless ref.start_with?('#/')
+
+      ref.delete_prefix('#/').split('/').map { |seg| seg.gsub('~1', '/').gsub('~0', '~') }
+    end
 
     # Реальные спеки часто содержат example с датой/временем без кавычек
     # (напр. Klarna: 2038-01-19T03:14:07Z). Date/Time — безопасные value-классы,

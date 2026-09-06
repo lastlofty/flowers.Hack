@@ -48,6 +48,7 @@ class TestManualFields < Minitest::Test
     assert_includes todo[:where], 'create_request'
     assert_includes todo[:hint], 'строка'
     assert_includes todo[:hint], 'заказ №42' # пример из спеки попал в подсказку
+    assert_operator todo[:line], :>, 0, 'у поля есть строка в спеке (source-map)'
   end
 
   def test_optional_unmapped_field_is_warning_not_todo

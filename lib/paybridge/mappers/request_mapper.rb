@@ -22,9 +22,11 @@ module Paybridge
       CURRENCY_HINT = /\b(currency|ccy)\b/i
       EXTERNAL_HINT = /\b(external_id|merchant_id|order_id|reference)\b/i
 
-      def initialize(report, overrides = {})
+      # field_line: callable(field_name) -> строка спеки или nil (source-map).
+      def initialize(report, overrides = {}, field_line: nil)
         @report = report
         @overrides = overrides || {}
+        @field_line = field_line
         @amount = nil
         @currency = nil
         @external_id_field = nil
@@ -118,7 +120,7 @@ module Paybridge
       def manual_field(name, hint, required)
         where = @current_group ? "requisite[#{@current_group.inspect}]" : 'create_request payload'
         if required
-          @report.todo(field: name, where: where, hint: hint)
+          @report.todo(field: name, where: where, hint: hint, line: @field_line&.call(name))
           @pending_comment = "TODO(PayBridge): заполните '#{name}' вручную — #{hint}"
         else
           @report.warn("Необязательное поле '#{name}' не сопоставлено — отправляется nil " \

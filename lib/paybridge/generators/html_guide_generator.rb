@@ -96,7 +96,8 @@ module Paybridge
         return '' if spec.report.todos.empty?
 
         items = spec.report.todos.map do |t|
-          "<li><code>#{e(t.field)}</code> <span class=\"muted\">#{e(t.where)}</span><br>" \
+          where = t.line ? "#{t.where} · спека, строка #{t.line}" : t.where
+          "<li><code>#{e(t.field)}</code> <span class=\"muted\">#{e(where)}</span><br>" \
             "<span class=\"hint\">#{e(t.hint)}</span></li>"
         end.join
         "<h2 class=\"todo\">✍ Заполните вручную (#{spec.report.todos.size})</h2><ul class=\"todo-list\">#{items}</ul>"

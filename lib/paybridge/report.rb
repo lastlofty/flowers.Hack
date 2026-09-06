@@ -18,9 +18,13 @@ module Paybridge
       def to_h = { level: level.to_s, message: message }
     end
 
-    # Поле для ручного заполнения: что заполнить, где в коде и подсказка как.
-    Todo = Struct.new(:field, :where, :hint, keyword_init: true) do
-      def to_h = { field: field, where: where, hint: hint }
+    # Поле для ручного заполнения: что заполнить, где в коде, подсказка и (если
+    # удалось) строка в исходной спеке (source-map).
+    Todo = Struct.new(:field, :where, :hint, :line, keyword_init: true) do
+      def to_h
+        base = { field: field, where: where, hint: hint }
+        line ? base.merge(line: line) : base
+      end
     end
 
     def initialize
@@ -46,8 +50,8 @@ module Paybridge
     end
 
     # Поле, которое провайдер требует, но мы не смогли сопоставить из спеки.
-    def todo(field:, where:, hint:)
-      @todos << Todo.new(field: field, where: where, hint: hint)
+    def todo(field:, where:, hint:, line: nil)
+      @todos << Todo.new(field: field, where: where, hint: hint, line: line)
       self
     end
 
