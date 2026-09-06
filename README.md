@@ -3,7 +3,7 @@
 [![Ruby tests](https://github.com/lastlofty/flowers.Hack/actions/workflows/test.yml/badge.svg)](https://github.com/lastlofty/flowers.Hack/actions/workflows/test.yml)
 [![Lint](https://github.com/lastlofty/flowers.Hack/actions/workflows/lint.yml/badge.svg)](https://github.com/lastlofty/flowers.Hack/actions/workflows/lint.yml)
 
-Кейс Space Payments: инструмент принимает OpenAPI 3.x-спецификацию провайдера
+Кейс Space Payments: инструмент принимает OpenAPI 3.x **или Swagger 2.0** спецификацию провайдера
 (`provider_api.yaml`) и генерирует готовую интеграцию под контракт
 `Provider::BaseService` — Ruby-сервис, `INTEGRATION.md` и `fixtures.json`.
 

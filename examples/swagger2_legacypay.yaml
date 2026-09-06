@@ -1,0 +1,91 @@
+swagger: "2.0"
+info:
+  title: LegacyPay API
+  version: "1.0.0"
+  description: >
+    Демонстрационный провайдер в формате Swagger 2.0 (OpenAPI 2). Генератор
+    нормализует его во внутреннюю 3.x-модель на входе — те же артефакты, что и
+    для OpenAPI 3.x.
+host: api.legacypay.example
+basePath: /v2
+schemes: [https]
+consumes: [application/json]
+produces: [application/json]
+securityDefinitions:
+  ApiKey:
+    type: apiKey
+    in: header
+    name: X-Api-Key
+security:
+  - ApiKey: []
+paths:
+  /payouts:
+    post:
+      operationId: createPayout
+      summary: Создать выплату
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PayoutRequest'
+      responses:
+        '201':
+          description: created
+          schema:
+            $ref: '#/definitions/Payout'
+          examples:
+            application/json: { id: pay_1, status: pending }
+  /payouts/{id}:
+    get:
+      operationId: getPayout
+      summary: Статус выплаты
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: ok
+          schema:
+            $ref: '#/definitions/Payout'
+          examples:
+            application/json: { id: pay_1, status: completed }
+  /payouts/{id}/cancel:
+    post:
+      operationId: cancelPayout
+      summary: Отменить выплату
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: ok
+          schema:
+            $ref: '#/definitions/Payout'
+definitions:
+  PayoutRequest:
+    type: object
+    required: [amount, currency]
+    properties:
+      amount:
+        type: integer
+        minimum: 100
+        description: Сумма в копейках
+      currency:
+        type: string
+        enum: [RUB]
+  Payout:
+    type: object
+    properties:
+      id: { type: string }
+      status:
+        type: string
+        enum: [pending, completed, failed]

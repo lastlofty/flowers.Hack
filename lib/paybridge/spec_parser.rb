@@ -12,6 +12,7 @@ require_relative 'ir'
 require_relative 'report'
 require_relative 'safe'
 require_relative 'line_index'
+require_relative 'swagger_converter'
 require_relative 'mappers/status_mapper'
 require_relative 'mappers/error_mapper'
 require_relative 'mappers/request_mapper'
@@ -156,7 +157,10 @@ module Paybridge
       content = self.class.read_source(@spec_path)
       @spec_sha256 = Digest::SHA256.hexdigest(content)
       @line_index = LineIndex.new(content)
-      YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
+      doc = YAML.safe_load(content, permitted_classes: YAML_PERMITTED, aliases: true)
+      # Swagger 2.0 -> нормализуем в 3.x на входе (paths сохраняются -> source-map жив).
+      SwaggerConverter.convert(doc) if doc.is_a?(Hash)
+      doc
     rescue Psych::Exception, EncodingError, ArgumentError => e
       # Psych: SyntaxError/DisallowedClass (!ruby/object, символ)/BadAlias;
       # Encoding/Argument: невалидные байты (не-UTF-8 вход от байтового фаззера).
@@ -249,11 +253,7 @@ module Paybridge
       end
 
       version = @doc['openapi'].to_s
-      return if version.start_with?('3.')
-
-      if @doc['swagger']
-        raise ParseError, 'Swagger 2.0 пока не поддерживается; требуется OpenAPI 3.x'
-      end
+      return if version.start_with?('3.') # Swagger 2.0 уже приведён к 3.x в load_yaml
 
       raise ParseError, 'Это не похоже на OpenAPI-спецификацию (нет ключа openapi)'
     end

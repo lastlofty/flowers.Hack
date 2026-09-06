@@ -70,15 +70,29 @@ class TestSpecParser < Minitest::Test
     assert_equal :reject, @spec.webhook.event_actions['payout.failed']
   end
 
-  def test_swagger_2_is_rejected_with_clear_message
+  def test_swagger_2_is_converted_and_parsed
+    # Swagger 2.0 больше не отвергается — нормализуется во внутреннюю 3.x-модель.
     file = Tempfile.new(['swagger', '.yaml'])
-    file.write("swagger: '2.0'\ninfo: { title: Old API, version: 1.0.0 }\npaths: {}\n")
+    file.write(<<~YAML)
+      swagger: "2.0"
+      info: { title: Old API, version: "1.0.0" }
+      host: api.old.example
+      basePath: /v2
+      schemes: [https]
+      paths:
+        /payouts:
+          post:
+            operationId: create
+            parameters:
+              - { name: body, in: body, required: true, schema: { type: object, required: [amount], properties: { amount: { type: integer, minimum: 100 } } } }
+            responses:
+              '201': { description: ok, schema: { type: object, properties: { id: { type: string }, status: { type: string, enum: [pending, done] } } } }
+    YAML
     file.rewind
 
-    error = assert_raises(Paybridge::SpecParser::ParseError) do
-      Paybridge::SpecParser.new(file.path, 'oldpay', Paybridge.load_config).parse
-    end
-    assert_match(/Swagger 2\.0/, error.message)
+    spec = Paybridge::SpecParser.new(file.path, 'oldpay', Paybridge.load_config).parse
+    assert_equal 'https://api.old.example/v2', spec.base_url
+    assert_equal '/payouts', spec.create_endpoint.path
   ensure
     file.close!
   end
