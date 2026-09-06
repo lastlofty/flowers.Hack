@@ -103,6 +103,7 @@ module Paybridge
           case spec.auth.scheme_type
           when 'apiKey' then "{{#{credential_var}}}"
           when 'http'   then spec.auth.http_scheme == 'basic' ? 'Basic {{basic_auth}}' : 'Bearer {{token}}'
+          when 'oauth2', 'openIdConnect' then 'Bearer {{token}}'
           end
         value ? [{ 'key' => spec.auth.header_name, 'value' => value }] : []
       end
@@ -113,6 +114,7 @@ module Paybridge
         case spec.auth.scheme_type
         when 'apiKey' then 'api_key'
         when 'http'   then spec.auth.http_scheme == 'basic' ? 'basic_auth' : 'token'
+        when 'oauth2', 'openIdConnect' then 'token'
         end
       end
 

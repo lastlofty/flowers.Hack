@@ -470,6 +470,11 @@ module Paybridge
         else # bearer — дефолт для http
           ['Authorization', 'token', %q{"Bearer #{provider.credentials.fetch('token')}"}]
         end
+      when 'oauth2', 'openIdConnect'
+        # Access-токен передаётся как Bearer; получение токена — вне генерации.
+        @report.warn("Схема '#{scheme['type']}': access-токен как Bearer; поток получения " \
+                     'токена настройте вручную.', level: :info)
+        ['Authorization', 'token', %q{"Bearer #{provider.credentials.fetch('token')}"}]
       else
         @report.warn("Схема авторизации '#{scheme['type']}' не поддержана — " \
                      'заголовки пустые, настройте авторизацию вручную')

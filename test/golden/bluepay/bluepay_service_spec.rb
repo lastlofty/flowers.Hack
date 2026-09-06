@@ -121,6 +121,8 @@ class BluepayServiceTest < Minitest::Test
                  else
                    "Bearer #{provider.credentials[auth['credentials_field']]}"
                  end
+               when 'oauth2', 'openIdConnect'
+                 "Bearer #{provider.credentials[auth['credentials_field']]}"
                end
     assert_equal expected, headers[auth['header']] if expected
   end

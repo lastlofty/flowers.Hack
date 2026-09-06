@@ -363,6 +363,8 @@ module Paybridge
                   else
                     "Bearer #{fake_provider.credentials[auth['credentials_field']]}"
                   end
+                when 'oauth2', 'openIdConnect'
+                  "Bearer #{fake_provider.credentials[auth['credentials_field']]}"
                 end
         headers[auth['header']] = value if value
       end
